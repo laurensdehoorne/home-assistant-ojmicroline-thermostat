@@ -8,7 +8,8 @@
     "config_flow": true,
     "dependencies": [
         "frontend",
-        "http"
+        "http",
+        "recorder"
     ],
     "documentation": "https://github.com/robbinjanssen/home-assistant-ojmicroline-thermostat",
     "iot_class": "cloud_push",
@@ -16,5 +17,5 @@
     "requirements": [
         "ojmicroline-thermostat==3.5.0"
     ],
-    "version": "1.5.2"
+    "version": "1.6.0"
 }

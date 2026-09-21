@@ -48,6 +48,12 @@ If you control your OWD5/MWD5 with the SWATT app, choose **WD5 series (SWATT app
 
 WD5-series thermostats receive live updates through the same notification service the OJ Microline and SWATT apps use, so changes made on the thermostat or in the app show up in Home Assistant within seconds. While this connection is up, the integration polls only every 5 minutes (for energy usage and as a fallback); when it drops, polling returns to every minute and the connection is retried automatically.
 
+## Energy statistics (WD5 series)
+
+For every WD5-series thermostat the integration imports the energy usage history into a long-term statistic named "<thermostat> energy" (`ojmicroline_thermostat:energy_<serial>`): the last 12 months per month, the last 5 weeks per day and the last week per hour, kept up to date per hour from then on. Add it under **Settings → Dashboards → Energy → Individual devices** to see the usage per day, week, month and year, like the apps' statistics screen.
+
+The "Energy Usage" sensor shows today's usage (from local midnight). Use either the statistic or the sensor in the energy dashboard, not both, or the usage is counted twice.
+
 ## Schedule and vacation (WD5 series)
 
 Every WD5-series thermostat gets these extra entities. Like in the apps, schedule and vacation settings belong to the thermostat's group.

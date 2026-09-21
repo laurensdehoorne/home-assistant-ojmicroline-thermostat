@@ -46,7 +46,8 @@ from .const import (
     REFRESH_COOLDOWN,
     UPDATE_INTERVAL,
 )
-from .helpers import format_wd5, format_wd5_date
+from .energy import EnergyStatistics
+from .helpers import format_wd5, format_wd5_date, is_wd5
 from .push import WD5PushClient
 
 _LOGGER = logging.getLogger(__name__)
@@ -80,6 +81,7 @@ class OJMicrolineDataUpdateCoordinator(DataUpdateCoordinator):
             model_api if isinstance(model_api, WD5API) else None
         )
         self.api = oj_microline_from_api(model_api, hass)
+        self.energy = EnergyStatistics(hass, self)
 
     async def _async_update_data(self) -> dict[str, Thermostat]:
         """Fetch data from API endpoint.
@@ -139,10 +141,16 @@ class OJMicrolineDataUpdateCoordinator(DataUpdateCoordinator):
         )
         for thermostat in thermostats:
             previous = (self.data or {}).get(thermostat.serial_number)
-            if refresh_energy or previous is None:
-                thermostat.energy = await api.get_energy_usage(thermostat)
-            else:
+            if not refresh_energy and previous is not None:
                 thermostat.energy = previous.energy
+            elif is_wd5(thermostat):
+                # Today's usage per local hour; the library's own request uses
+                # the UTC date, so it shows yesterday's total until 02:00.
+                today = await self.energy.async_today(thermostat)
+                thermostat.energy = [round(sum(today), 4)]
+                self.energy.schedule_import(thermostat, today)
+            else:
+                thermostat.energy = await api.get_energy_usage(thermostat)
         if refresh_energy:
             self._energy_updated = now
         return thermostats
