@@ -27,6 +27,15 @@ the HVAC mode will (re)set it to the schedule preset.
 
 Your thermostat needs to be connected to the internet. For OWD5 model thermostats you will need the API key and customer ID that is used by the app that you currently use to control your thermostat.
 
+For WD5-series thermostats (OWD5, MWD5) the SWATT and OJ Microline OWD5 apps use the same API key, with a different customer ID:
+
+| App | API key | Customer ID |
+| --- | --- | --- |
+| SWATT | `f219aab4-9ac0-4343-8422-b72203e2fac9` | `99` |
+| OJ Microline OWD5 | `f219aab4-9ac0-4343-8422-b72203e2fac9` | `1` |
+
+The API key only identifies the app; you still sign in with your own username and password.
+
 ## HACS installation
 
 Add this integration using HACS by searching for `OJ Microline Thermostat` on the `Integrations` page.
