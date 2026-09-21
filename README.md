@@ -61,12 +61,13 @@ Every WD5-series thermostat gets these extra entities. Like in the apps, schedul
 
 ### Schedule card
 
-The integration ships a dashboard card that shows the weekly schedule and highlights the event that is active right now. It is loaded automatically: edit a dashboard, add a card and pick **OJ Microline schedule**, or use YAML:
+The integration ships a dashboard card that shows the weekly schedule and highlights the event that is active right now. Tap a day to edit it: change, add or remove events, optionally apply the same events to other days, and save. It is loaded automatically: edit a dashboard, add a card and pick **OJ Microline schedule**, or use YAML:
 
 ```yaml
 type: custom:ojmicroline-schedule-card
 entity: sensor.living_room_schedule
 title: Living room  # optional
+climate_entity: climate.living_room  # optional; found via the device otherwise
 ```
 
 ### Services
