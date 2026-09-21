@@ -22,13 +22,16 @@ def oj_microline_from_config_entry_data(
     data: dict[str, Any], hass: HomeAssistant
 ) -> OJMicroline:
     """Construct an OJMicroline object from the given config entry data."""
-    return OJMicroline(
-        api=_api_from_config_entry_data(data),
-        session=async_create_clientsession(hass),
-    )
+    return oj_microline_from_api(api_from_config_entry_data(data), hass)
 
 
-def _api_from_config_entry_data(data: dict[str, Any]) -> Any:
+def oj_microline_from_api(api: Any, hass: HomeAssistant) -> OJMicroline:
+    """Construct an OJMicroline object around an already created API object."""
+    return OJMicroline(api=api, session=async_create_clientsession(hass))
+
+
+def api_from_config_entry_data(data: dict[str, Any]) -> Any:
+    """Construct the model-specific API object from the given config entry data."""
     # Only pass the host kwarg if it's overridden; otherwise
     # omit it to use the argument's default value.
     extra_args = {}

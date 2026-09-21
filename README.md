@@ -42,6 +42,30 @@ Install this integration by copying all files in `/custom_components/ojmicroline
 
 To configure the integration, add it using [Home Assistant integrations][ha-add-url]. This will provide you with a configuration screen where you enter the customer ID, API key, username and password.
 
+If you control your OWD5/MWD5 with the SWATT app, choose **WD5 series (SWATT app)**: the app's API key and customer ID are filled in for you, so you only need your SWATT username and password.
+
+## Live updates (WD5 series)
+
+WD5-series thermostats receive live updates through the same notification service the OJ Microline and SWATT apps use, so changes made on the thermostat or in the app show up in Home Assistant within seconds. While this connection is up, the integration polls only every 5 minutes (for energy usage and as a fallback); when it drops, polling returns to every minute and the connection is retried automatically.
+
+## Services (WD5 series)
+
+| Service | Description |
+| --- | --- |
+| `ojmicroline_thermostat.set_vacation` | Schedule a vacation from `start_date` (00:00) until `end_date` (00:00, the day normal regulation resumes). If the start date has already begun, vacation mode is activated immediately. |
+| `ojmicroline_thermostat.cancel_vacation` | Cancel a scheduled or active vacation. An active vacation returns to schedule or manual mode, whichever was used last. |
+
+Like the apps, these apply to the thermostat's whole group.
+
+```yaml
+action: ojmicroline_thermostat.set_vacation
+target:
+  entity_id: climate.living_room
+data:
+  start_date: "2026-12-24"
+  end_date: "2027-01-02"
+```
+
 ## Contributing
 
 Please see [CONTRIBUTING](.github/CONTRIBUTING.md) and [CODE_OF_CONDUCT](.github/CODE_OF_CONDUCT.md) for details.

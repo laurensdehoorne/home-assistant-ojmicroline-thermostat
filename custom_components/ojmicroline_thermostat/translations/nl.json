@@ -7,7 +7,23 @@
                     "model": "Model"
                 },
                 "data_description": {
-                    "model": "De WD5-serie betreft de OWD5 en MWD5; de WG4-serie betreft de UWG4 en AWG4."
+                    "model": "De WD5-serie betreft de OWD5 en MWD5; de WG4-serie betreft de UWG4 en AWG4. Kies \"SWATT app\" als je de SWATT-app gebruikt, dan wordt de API key voor je ingevuld."
+                }
+            },
+            "swatt": {
+                "title": "SWATT-app",
+                "description": "Log in met de gebruikersnaam en het wachtwoord van je SWATT-account. De API key en het customer ID van de SWATT-app zijn al ingevuld.",
+                "data": {
+                    "username": "Gebruikersnaam",
+                    "password": "Wachtwoord",
+                    "api_key": "API Key",
+                    "customer_id": "Customer ID",
+                    "host": "Host"
+                },
+                "data_description": {
+                    "api_key": "De API key van de SWATT-app.",
+                    "customer_id": "Het customer ID van de SWATT-app.",
+                    "host": "Laat dit leeg om de standaardwaarde te gebruiken. Indien opgegeven, laat https:// weg."
                 }
             },
             "wd5": {
@@ -70,6 +86,26 @@
                     "comfort_mode_duration": "De totale tijd in minuten dat de comfort mode aan moet staan."
                 }
             }
+        }
+    },
+    "services": {
+        "set_vacation": {
+            "name": "Vakantie instellen",
+            "description": "Plan een vakantie voor de groep van de thermostaat (WD5-serie). De vakantie loopt van 00:00 op de begindatum tot 00:00 op de einddatum; is die al begonnen, dan wordt de vakantiestand meteen actief.",
+            "fields": {
+                "start_date": {
+                    "name": "Begindatum",
+                    "description": "De eerste dag van de vakantie."
+                },
+                "end_date": {
+                    "name": "Einddatum",
+                    "description": "De dag waarop de normale regeling hervat (om 00:00)."
+                }
+            }
+        },
+        "cancel_vacation": {
+            "name": "Vakantie annuleren",
+            "description": "Annuleer de geplande of actieve vakantie voor de groep van de thermostaat (WD5-serie). Een actieve vakantie keert terug naar schema of handmatig, afhankelijk van wat het laatst gebruikt werd."
         }
     }
 }

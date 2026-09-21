@@ -7,7 +7,23 @@
                     "model": "Model"
                 },
                 "data_description": {
-                    "model": "The WD5 series includes OWD5 and MWD5; the WG4 series includes UWG4 and AWG4."
+                    "model": "The WD5 series includes OWD5 and MWD5; the WG4 series includes UWG4 and AWG4. Choose \"SWATT app\" if you use the SWATT app to have the API key filled in."
+                }
+            },
+            "swatt": {
+                "title": "SWATT app",
+                "description": "Sign in with the username and password of your SWATT account. The API key and customer ID of the SWATT app are already filled in.",
+                "data": {
+                    "username": "Username",
+                    "password": "Password",
+                    "api_key": "API Key",
+                    "customer_id": "Customer ID",
+                    "host": "Host"
+                },
+                "data_description": {
+                    "api_key": "The API key of the SWATT app.",
+                    "customer_id": "The customer ID of the SWATT app.",
+                    "host": "Leave blank to use the default. If specified, omit the https://."
                 }
             },
             "wd5": {
@@ -72,6 +88,26 @@
                     "comfort_mode_duration": "The duration in minutes the comfort mode should be enabled."
                 }
             }
+        }
+    },
+    "services": {
+        "set_vacation": {
+            "name": "Set vacation",
+            "description": "Schedule a vacation for the thermostat's group (WD5 series). The vacation runs from 00:00 on the start date until 00:00 on the end date; if it has already started, vacation mode is activated immediately.",
+            "fields": {
+                "start_date": {
+                    "name": "Start date",
+                    "description": "The first day of the vacation."
+                },
+                "end_date": {
+                    "name": "End date",
+                    "description": "The day normal regulation resumes (at 00:00)."
+                }
+            }
+        },
+        "cancel_vacation": {
+            "name": "Cancel vacation",
+            "description": "Cancel the scheduled or active vacation for the thermostat's group (WD5 series). An active vacation returns to schedule or manual mode, whichever was used last."
         }
     }
 }

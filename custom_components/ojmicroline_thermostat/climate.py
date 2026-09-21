@@ -3,8 +3,10 @@
 import asyncio
 import logging
 from collections.abc import Mapping  # pylint: disable=import-error
+from datetime import date
 from typing import Any, ClassVar
 
+import voluptuous as vol
 from homeassistant.components.climate import (
     ClimateEntity,
     ClimateEntityFeature,
@@ -19,9 +21,13 @@ from homeassistant.components.climate.const import (
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import ATTR_TEMPERATURE, UnitOfTemperature
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
+from homeassistant.helpers import config_validation as cv
+from homeassistant.helpers import entity_platform
 from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
+from homeassistant.util import dt as dt_util
 
 from ojmicroline_thermostat import OJMicrolineError
 from ojmicroline_thermostat.const import (
@@ -35,6 +41,8 @@ from ojmicroline_thermostat.const import (
 )
 
 from .const import (
+    ATTR_END_DATE,
+    ATTR_START_DATE,
     CONF_COMFORT_MODE_DURATION,
     CONF_USE_COMFORT_MODE,
     DOMAIN,
@@ -43,6 +51,8 @@ from .const import (
     PRESET_MANUAL,
     PRESET_SCHEDULE,
     PRESET_VACATION,
+    SERVICE_CANCEL_VACATION,
+    SERVICE_SET_VACATION,
 )
 from .coordinator import OJMicrolineDataUpdateCoordinator
 
@@ -81,6 +91,19 @@ async def async_setup_entry(
             )
         )
     async_add_entities(entities)
+
+    platform = entity_platform.async_get_current_platform()
+    platform.async_register_entity_service(
+        SERVICE_SET_VACATION,
+        {
+            vol.Required(ATTR_START_DATE): cv.date,
+            vol.Required(ATTR_END_DATE): cv.date,
+        },
+        "async_set_vacation",
+    )
+    platform.async_register_entity_service(
+        SERVICE_CANCEL_VACATION, {}, "async_cancel_vacation"
+    )
 
 
 class OJMicrolineThermostat(
@@ -271,6 +294,41 @@ class OJMicrolineThermostat(
             temperature=int(temperature * 100),
             duration=self.options.get(CONF_COMFORT_MODE_DURATION),
         )
+        await self._async_delayed_request_refresh()
+
+    async def async_set_vacation(self, start_date: date, end_date: date) -> None:
+        """Schedule a vacation for this thermostat's group.
+
+        Args:
+        ----
+            start_date: The first day of the vacation.
+            end_date: The day normal regulation resumes.
+
+        """
+        if end_date <= start_date:
+            msg = "The end date must be after the start date."
+            raise ServiceValidationError(msg)
+        if end_date <= dt_util.now().date():
+            msg = "The end date must be in the future."
+            raise ServiceValidationError(msg)
+        await self._async_update_vacation(start_date, end_date)
+
+    async def async_cancel_vacation(self) -> None:
+        """Cancel the (scheduled or active) vacation for this thermostat's group."""
+        await self._async_update_vacation(None, None)
+
+    async def _async_update_vacation(
+        self, start_date: date | None, end_date: date | None
+    ) -> None:
+        if self.coordinator.wd5_api is None:
+            msg = "Vacation can only be set on WD5-series thermostats."
+            raise ServiceValidationError(msg)
+        try:
+            await self.coordinator.async_set_vacation(
+                self.coordinator.data[self.idx], start_date, end_date
+            )
+        except OJMicrolineError as error:
+            raise HomeAssistantError(str(error)) from error
         await self._async_delayed_request_refresh()
 
     async def _async_delayed_request_refresh(self) -> None:

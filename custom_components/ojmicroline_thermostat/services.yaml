@@ -1,0 +1,23 @@
+---
+set_vacation:
+  target:
+    entity:
+      integration: ojmicroline_thermostat
+      domain: climate
+  fields:
+    start_date:
+      required: true
+      example: "2026-12-24"
+      selector:
+        date:
+    end_date:
+      required: true
+      example: "2027-01-02"
+      selector:
+        date:
+
+cancel_vacation:
+  target:
+    entity:
+      integration: ojmicroline_thermostat
+      domain: climate

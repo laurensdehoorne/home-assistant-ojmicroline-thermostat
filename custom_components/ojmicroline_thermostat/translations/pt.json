@@ -10,6 +10,22 @@
                     "model": "A série WD5 inclui OWD5 e MWD5; a série WG4 inclui UWG4 e AWG4."
                 }
             },
+            "swatt": {
+                "title": "Aplicação SWATT",
+                "description": "Inicie sessão com o utilizador e a senha da sua conta SWATT. A chave API e o ID de cliente da aplicação SWATT já estão preenchidos.",
+                "data": {
+                    "username": "Utilizador",
+                    "password": "Senha",
+                    "api_key": "Chave API",
+                    "customer_id": "ID de Cliente",
+                    "host": "Endereço"
+                },
+                "data_description": {
+                    "api_key": "A chave API da aplicação SWATT.",
+                    "customer_id": "O ID de cliente da aplicação SWATT.",
+                    "host": "Deixe em branco para usar o padrão. Se especificado, omita https://."
+                }
+            },
             "wd5": {
                 "data": {
                     "username": "Utilizador",
