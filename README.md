@@ -59,6 +59,16 @@ Every WD5-series thermostat gets these extra entities. Like in the apps, schedul
 | `date.<name>_vacation_end` | The day normal regulation resumes (at 00:00). Moving one date past the other moves the other along. |
 | `switch.<name>_vacation` | Enables the vacation period. If it has already started, vacation mode is activated immediately; switching it off returns to schedule or manual mode, whichever was used last. |
 
+### Schedule card
+
+The integration ships a dashboard card that shows the weekly schedule and highlights the event that is active right now. It is loaded automatically: edit a dashboard, add a card and pick **OJ Microline schedule**, or use YAML:
+
+```yaml
+type: custom:ojmicroline-schedule-card
+entity: sensor.living_room_schedule
+title: Living room  # optional
+```
+
 ### Services
 
 | Service | Description |
