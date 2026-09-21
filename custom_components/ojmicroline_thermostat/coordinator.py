@@ -3,6 +3,7 @@
 import logging
 from dataclasses import replace
 from datetime import date, datetime, timedelta
+from time import monotonic
 from typing import Any
 
 import async_timeout
@@ -10,6 +11,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
+from homeassistant.helpers.debounce import Debouncer
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from homeassistant.util import dt as dt_util
 
@@ -26,13 +28,16 @@ from ojmicroline_thermostat.const import (
     REGULATION_VACATION,
     WD5_DATETIME_FORMAT,
 )
+from ojmicroline_thermostat.ojmicroline import SessionOJMicrolineAPI
 
 from .api import api_from_config_entry_data, oj_microline_from_api
 from .const import (
     API_TIMEOUT,
     DOMAIN,
+    ENERGY_UPDATE_INTERVAL,
     PUSH_ACTION_UPDATE,
     PUSH_UPDATE_INTERVAL,
+    REFRESH_COOLDOWN,
     UPDATE_INTERVAL,
 )
 from .push import WD5PushClient
@@ -57,8 +62,13 @@ class OJMicrolineDataUpdateCoordinator(DataUpdateCoordinator):
             _LOGGER,
             name=DOMAIN,
             update_interval=timedelta(seconds=UPDATE_INTERVAL),
+            request_refresh_debouncer=Debouncer(
+                hass, _LOGGER, cooldown=REFRESH_COOLDOWN, immediate=True
+            ),
         )
         model_api = api_from_config_entry_data(entry.data)
+        self._model_api = model_api
+        self._energy_updated: float | None = None
         self.wd5_api: WD5API | None = (
             model_api if isinstance(model_api, WD5API) else None
         )
@@ -83,7 +93,7 @@ class OJMicrolineDataUpdateCoordinator(DataUpdateCoordinator):
         """
         try:
             async with async_timeout.timeout(API_TIMEOUT):
-                thermostats = await self.api.get_thermostats()
+                thermostats = await self._async_fetch_thermostats()
                 return {resource.serial_number: resource for resource in thermostats}
 
         except OJMicrolineAuthError as error:
@@ -91,6 +101,44 @@ class OJMicrolineDataUpdateCoordinator(DataUpdateCoordinator):
 
         except OJMicrolineError as error:
             raise UpdateFailed(error) from error
+
+    async def _async_fetch_thermostats(self) -> list[Thermostat]:
+        """Fetch the thermostats, reusing recent energy usage where possible.
+
+        The library fetches energy usage for every thermostat on every poll,
+        which is one extra request per thermostat. Energy usage changes
+        slowly, so only refresh it every ENERGY_UPDATE_INTERVAL.
+        """
+        api = self._model_api
+        if not isinstance(api, SessionOJMicrolineAPI):
+            return await self.api.get_thermostats()
+
+        await self.api.login()
+        data = await api.request(
+            api.get_thermostats_path,
+            method="GET",
+            params={
+                # pylint: disable-next=protected-access
+                "sessionid": api._session_id,  # noqa: SLF001
+                **api.get_thermostats_params(),
+            },
+        )
+        thermostats = api.parse_thermostats_response(data)
+
+        now = monotonic()
+        refresh_energy = (
+            self._energy_updated is None
+            or now - self._energy_updated >= ENERGY_UPDATE_INTERVAL
+        )
+        for thermostat in thermostats:
+            previous = (self.data or {}).get(thermostat.serial_number)
+            if refresh_energy or previous is None:
+                thermostat.energy = await api.get_energy_usage(thermostat)
+            else:
+                thermostat.energy = previous.energy
+        if refresh_energy:
+            self._energy_updated = now
+        return thermostats
 
     def async_start_push(self, entry: ConfigEntry) -> None:
         """Start receiving push updates (WD5 series only)."""
@@ -116,6 +164,14 @@ class OJMicrolineDataUpdateCoordinator(DataUpdateCoordinator):
 
     @callback
     def _async_handle_push_message(self, message: dict[str, Any]) -> None:
+        _LOGGER.debug(
+            "Push message received: %s",
+            {
+                key: len(value)
+                for key, value in message.items()
+                if isinstance(value, list)
+            },
+        )
         if not self.data:
             return
 

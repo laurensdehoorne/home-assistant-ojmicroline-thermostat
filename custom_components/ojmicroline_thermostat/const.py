@@ -9,6 +9,10 @@ API_TIMEOUT = 30
 UPDATE_INTERVAL = 60
 # Polling interval while push updates are connected (WD5 series).
 PUSH_UPDATE_INTERVAL = 300
+# Rate limiting: energy usage changes slowly, so fetch it (one request per
+# thermostat) at most this often, and space out extra refresh requests.
+ENERGY_UPDATE_INTERVAL = 1800
+REFRESH_COOLDOWN = 30
 # "Action" value in pushed thermostat data for an update (1 = add, 3 = remove).
 PUSH_ACTION_UPDATE = 2
 
