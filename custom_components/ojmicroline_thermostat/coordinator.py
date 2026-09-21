@@ -349,6 +349,38 @@ class OJMicrolineDataUpdateCoordinator(DataUpdateCoordinator):
             thermostat, {"Schedule": schedule}, exclude_vacation=True
         )
 
+    async def async_fetch_energy(
+        self, thermostat: Thermostat, view_type: int, day: date, history: int
+    ) -> Any:
+        """Fetch the raw energy usage response (WD5 series only).
+
+        Args:
+        ----
+            thermostat: The thermostat.
+            view_type: The API's view type (2 = days, 4 = months in the apps).
+            day: The reference date sent to the API.
+            history: The API's history parameter.
+
+        """
+        api = self.wd5_api
+        if api is None:
+            msg = "Energy usage history is only supported on WD5-series thermostats."
+            raise OJMicrolineError(msg)
+        await self.api.login()
+        return await api.request(
+            api.get_energy_usage_path,
+            method="POST",
+            # pylint: disable-next=protected-access
+            params={"sessionid": api._session_id},  # noqa: SLF001
+            body={
+                **api.get_thermostats_params(),
+                "ThermostatID": thermostat.serial_number,
+                "ViewType": view_type,
+                "DateTime": day.isoformat(),
+                "History": history,
+            },
+        )
+
     async def async_set_regulation_mode(
         self,
         thermostat: Thermostat,
