@@ -1,5 +1,6 @@
 """Helper to construct OJMicroline objects."""
 
+from collections.abc import Mapping
 from typing import Any
 
 from homeassistant.const import CONF_API_KEY, CONF_HOST, CONF_PASSWORD, CONF_USERNAME
@@ -30,7 +31,7 @@ def oj_microline_from_api(api: Any, hass: HomeAssistant) -> OJMicroline:
     return OJMicroline(api=api, session=async_create_clientsession(hass))
 
 
-def api_from_config_entry_data(data: dict[str, Any]) -> Any:
+def api_from_config_entry_data(data: Mapping[str, Any]) -> Any:
     """Construct the model-specific API object from the given config entry data."""
     # Only pass the host kwarg if it's overridden; otherwise
     # omit it to use the argument's default value.

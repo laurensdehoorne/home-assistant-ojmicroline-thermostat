@@ -21,13 +21,12 @@ from homeassistant.components.climate.const import (
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import ATTR_TEMPERATURE, UnitOfTemperature
 from homeassistant.core import HomeAssistant
-from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
+from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers import entity_platform
 from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
-from homeassistant.util import dt as dt_util
 
 from ojmicroline_thermostat import OJMicrolineError
 from ojmicroline_thermostat.const import (
@@ -41,8 +40,11 @@ from ojmicroline_thermostat.const import (
 )
 
 from .const import (
+    ATTR_DAYS,
     ATTR_END_DATE,
+    ATTR_EVENTS,
     ATTR_START_DATE,
+    ATTR_TIME,
     CONF_COMFORT_MODE_DURATION,
     CONF_USE_COMFORT_MODE,
     DOMAIN,
@@ -52,9 +54,12 @@ from .const import (
     PRESET_SCHEDULE,
     PRESET_VACATION,
     SERVICE_CANCEL_VACATION,
+    SERVICE_SET_SCHEDULE,
     SERVICE_SET_VACATION,
 )
 from .coordinator import OJMicrolineDataUpdateCoordinator
+from .helpers import wd5_date
+from .schedule import SLOTS, WEEKDAYS, ScheduleError, set_days
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -103,6 +108,27 @@ async def async_setup_entry(
     )
     platform.async_register_entity_service(
         SERVICE_CANCEL_VACATION, {}, "async_cancel_vacation"
+    )
+    platform.async_register_entity_service(
+        SERVICE_SET_SCHEDULE,
+        {
+            vol.Required(ATTR_DAYS): vol.All(
+                cv.ensure_list, [vol.In(WEEKDAYS)], vol.Length(min=1)
+            ),
+            vol.Required(ATTR_EVENTS): vol.All(
+                cv.ensure_list,
+                [
+                    vol.Schema(
+                        {
+                            vol.Required(ATTR_TIME): cv.time,
+                            vol.Required(ATTR_TEMPERATURE): vol.Coerce(float),
+                        }
+                    )
+                ],
+                vol.Length(min=1, max=SLOTS),
+            ),
+        },
+        "async_set_schedule",
     )
 
 
@@ -256,9 +282,9 @@ class OJMicrolineThermostat(
 
         """
         try:
-            await self.coordinator.api.set_regulation_mode(
+            await self.coordinator.async_set_regulation_mode(
                 self.coordinator.data[self.idx],
-                HA_TO_VENDOR_STATE.get(preset_mode),
+                HA_TO_VENDOR_STATE[preset_mode],
             )
             await self._async_delayed_request_refresh()
         except OJMicrolineError:
@@ -288,10 +314,10 @@ class OJMicrolineThermostat(
                 else REGULATION_MANUAL
             )
 
-        await self.coordinator.api.set_regulation_mode(
-            resource=self.coordinator.data[self.unique_id],
-            regulation_mode=regulation_mode,
-            temperature=int(temperature * 100),
+        await self.coordinator.async_set_regulation_mode(
+            self.coordinator.data[self.idx],
+            regulation_mode,
+            temperature=round(temperature * 100),
             duration=self.options.get(CONF_COMFORT_MODE_DURATION),
         )
         await self._async_delayed_request_refresh()
@@ -305,31 +331,46 @@ class OJMicrolineThermostat(
             end_date: The day normal regulation resumes.
 
         """
-        if end_date <= start_date:
-            msg = "The end date must be after the start date."
-            raise ServiceValidationError(msg)
-        if end_date <= dt_util.now().date():
-            msg = "The end date must be in the future."
-            raise ServiceValidationError(msg)
-        await self._async_update_vacation(start_date, end_date)
+        await self.coordinator.async_change_vacation(
+            self.coordinator.data[self.idx], start_date, end_date, enabled=True
+        )
 
     async def async_cancel_vacation(self) -> None:
         """Cancel the (scheduled or active) vacation for this thermostat's group."""
-        await self._async_update_vacation(None, None)
+        thermostat = self.coordinator.data[self.idx]
+        start = wd5_date(thermostat.vacation_begin_time)
+        end = wd5_date(thermostat.vacation_end_time)
+        if start is None or end is None or end <= start:
+            msg = "Vacation can only be cancelled on WD5-series thermostats."
+            raise ServiceValidationError(msg)
+        await self.coordinator.async_change_vacation(
+            thermostat, start, end, enabled=False
+        )
 
-    async def _async_update_vacation(
-        self, start_date: date | None, end_date: date | None
+    async def async_set_schedule(
+        self, days: list[str], events: list[dict[str, Any]]
     ) -> None:
-        if self.coordinator.wd5_api is None:
-            msg = "Vacation can only be set on WD5-series thermostats."
+        """Set the events of one or more weekdays in the group's schedule.
+
+        Args:
+        ----
+            days: The weekdays to change (monday ... sunday).
+            events: The day's events, each with a time and a temperature.
+
+        """
+        thermostat = self.coordinator.data[self.idx]
+        if thermostat.schedule is None:
+            msg = "The schedule can only be set on WD5-series thermostats."
             raise ServiceValidationError(msg)
         try:
-            await self.coordinator.async_set_vacation(
-                self.coordinator.data[self.idx], start_date, end_date
+            schedule = set_days(
+                thermostat.schedule,
+                days,
+                [(event[ATTR_TIME], event[ATTR_TEMPERATURE]) for event in events],
             )
-        except OJMicrolineError as error:
-            raise HomeAssistantError(str(error)) from error
-        await self._async_delayed_request_refresh()
+        except ScheduleError as error:
+            raise ServiceValidationError(str(error)) from error
+        await self.coordinator.async_change_schedule(thermostat, schedule)
 
     async def _async_delayed_request_refresh(self) -> None:
         """Get delayed data from the coordinator.

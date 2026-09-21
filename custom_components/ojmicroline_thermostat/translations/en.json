@@ -77,6 +77,24 @@
                     }
                 }
             }
+        },
+        "sensor": {
+            "schedule": {
+                "name": "Schedule"
+            }
+        },
+        "date": {
+            "vacation_begin": {
+                "name": "Vacation begin"
+            },
+            "vacation_end": {
+                "name": "Vacation end"
+            }
+        },
+        "switch": {
+            "vacation": {
+                "name": "Vacation"
+            }
         }
     },
     "options": {
@@ -108,6 +126,33 @@
         "cancel_vacation": {
             "name": "Cancel vacation",
             "description": "Cancel the scheduled or active vacation for the thermostat's group (WD5 series). An active vacation returns to schedule or manual mode, whichever was used last."
+        },
+        "set_schedule": {
+            "name": "Set schedule",
+            "description": "Set the events of one or more weekdays in the thermostat group's weekly schedule (WD5 series). Up to 6 events per day, on the quarter hour, at least 15 minutes apart; a time earlier than the previous one is after midnight (03:00 at the latest).",
+            "fields": {
+                "days": {
+                    "name": "Days",
+                    "description": "The weekdays to change."
+                },
+                "events": {
+                    "name": "Events",
+                    "description": "The day's events in order, each with a time (HH:MM) and a temperature (5-40 °C)."
+                }
+            }
+        }
+    },
+    "selector": {
+        "weekday": {
+            "options": {
+                "monday": "Monday",
+                "tuesday": "Tuesday",
+                "wednesday": "Wednesday",
+                "thursday": "Thursday",
+                "friday": "Friday",
+                "saturday": "Saturday",
+                "sunday": "Sunday"
+            }
         }
     }
 }

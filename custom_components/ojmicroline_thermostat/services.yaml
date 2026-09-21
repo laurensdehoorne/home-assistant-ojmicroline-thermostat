@@ -21,3 +21,30 @@ cancel_vacation:
     entity:
       integration: ojmicroline_thermostat
       domain: climate
+
+set_schedule:
+  target:
+    entity:
+      integration: ojmicroline_thermostat
+      domain: climate
+  fields:
+    days:
+      required: true
+      example: '["monday", "tuesday", "wednesday", "thursday", "friday"]'
+      selector:
+        select:
+          multiple: true
+          translation_key: weekday
+          options:
+            - monday
+            - tuesday
+            - wednesday
+            - thursday
+            - friday
+            - saturday
+            - sunday
+    events:
+      required: true
+      example: '[{"time": "06:00", "temperature": 21}, {"time": "22:00", "temperature": 17}]'
+      selector:
+        object:

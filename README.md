@@ -48,22 +48,40 @@ If you control your OWD5/MWD5 with the SWATT app, choose **WD5 series (SWATT app
 
 WD5-series thermostats receive live updates through the same notification service the OJ Microline and SWATT apps use, so changes made on the thermostat or in the app show up in Home Assistant within seconds. While this connection is up, the integration polls only every 5 minutes (for energy usage and as a fallback); when it drops, polling returns to every minute and the connection is retried automatically.
 
-## Services (WD5 series)
+## Schedule and vacation (WD5 series)
+
+Every WD5-series thermostat gets these extra entities. Like in the apps, schedule and vacation settings belong to the thermostat's group.
+
+| Entity | Description |
+| --- | --- |
+| `sensor.<name>_schedule` | The temperature the weekly schedule prescribes right now. The attributes list every weekday's events (`time`, `temperature`, and `next_day` for events after midnight). |
+| `date.<name>_vacation_begin` | The first day of the vacation. |
+| `date.<name>_vacation_end` | The day normal regulation resumes (at 00:00). Moving one date past the other moves the other along. |
+| `switch.<name>_vacation` | Enables the vacation period. If it has already started, vacation mode is activated immediately; switching it off returns to schedule or manual mode, whichever was used last. |
+
+### Services
 
 | Service | Description |
 | --- | --- |
-| `ojmicroline_thermostat.set_vacation` | Schedule a vacation from `start_date` (00:00) until `end_date` (00:00, the day normal regulation resumes). If the start date has already begun, vacation mode is activated immediately. |
-| `ojmicroline_thermostat.cancel_vacation` | Cancel a scheduled or active vacation. An active vacation returns to schedule or manual mode, whichever was used last. |
-
-Like the apps, these apply to the thermostat's whole group.
+| `ojmicroline_thermostat.set_schedule` | Set the events of one or more weekdays: up to 6 per day, on the quarter hour, at least 15 minutes apart, 5-40 °C. A time earlier than the previous one is after midnight (03:00 at the latest). The first event must be at 22:00 at the latest. |
+| `ojmicroline_thermostat.set_vacation` | Set and enable a vacation from `start_date` until `end_date`. |
+| `ojmicroline_thermostat.cancel_vacation` | Disable the vacation. |
 
 ```yaml
-action: ojmicroline_thermostat.set_vacation
+action: ojmicroline_thermostat.set_schedule
 target:
   entity_id: climate.living_room
 data:
-  start_date: "2026-12-24"
-  end_date: "2027-01-02"
+  days: [monday, tuesday, wednesday, thursday, friday]
+  events:
+    - time: "06:00"
+      temperature: 21
+    - time: "08:30"
+      temperature: 17
+    - time: "17:00"
+      temperature: 21
+    - time: "22:30"
+      temperature: 17
 ```
 
 ## Contributing

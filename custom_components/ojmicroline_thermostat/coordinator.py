@@ -1,15 +1,20 @@
 """OJMicroline Thermostat platform configuration."""
 
+import asyncio
 import logging
 from dataclasses import replace
-from datetime import date, datetime, timedelta
+from datetime import date, timedelta
 from time import monotonic
 from typing import Any
 
 import async_timeout
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
-from homeassistant.exceptions import ConfigEntryAuthFailed
+from homeassistant.exceptions import (
+    ConfigEntryAuthFailed,
+    HomeAssistantError,
+    ServiceValidationError,
+)
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.debounce import Debouncer
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
@@ -23,10 +28,11 @@ from ojmicroline_thermostat import (
 )
 from ojmicroline_thermostat.const import (
     COMFORT_DURATION,
+    REGULATION_BOOST,
+    REGULATION_COMFORT,
     REGULATION_MANUAL,
     REGULATION_SCHEDULE,
     REGULATION_VACATION,
-    WD5_DATETIME_FORMAT,
 )
 from ojmicroline_thermostat.ojmicroline import SessionOJMicrolineAPI
 
@@ -40,6 +46,7 @@ from .const import (
     REFRESH_COOLDOWN,
     UPDATE_INTERVAL,
 )
+from .helpers import format_wd5, format_wd5_date
 from .push import WD5PushClient
 
 _LOGGER = logging.getLogger(__name__)
@@ -223,65 +230,191 @@ class OJMicrolineDataUpdateCoordinator(DataUpdateCoordinator):
     async def async_set_vacation(
         self,
         thermostat: Thermostat,
-        start: date | None,
-        end: date | None,
+        start: date,
+        end: date,
+        *,
+        enabled: bool,
     ) -> None:
-        """Enable (start and end given) or disable vacation for a thermostat's group.
+        """Set the vacation period of a thermostat's group, and enable or disable it.
 
         Mirrors the vacation screen of the OJ Microline and SWATT apps: the
         vacation runs from 00:00 on the start date until 00:00 on the end date.
-        If the start date has already begun, vacation mode is activated right
-        away. When vacation is disabled while active, the thermostat returns to
-        schedule or manual mode, whichever was used last.
+        If an enabled vacation has already begun, vacation mode is activated
+        right away. When vacation mode is left (disabled, or moved to the
+        future), the thermostat returns to schedule or manual mode, whichever
+        was used last.
 
         Args:
         ----
             thermostat: The thermostat whose group to update.
-            start: The first day of the vacation, or None to disable.
-            end: The day normal regulation resumes, or None to disable.
+            start: The first day of the vacation.
+            end: The day normal regulation resumes.
+            enabled: Whether the vacation is enabled.
 
         Raises:
         ------
             OJMicrolineError: The API refused the update.
 
         """
+        regulation_mode = thermostat.regulation_mode
+        if enabled and dt_util.start_of_local_day(start) <= dt_util.now():
+            regulation_mode = REGULATION_VACATION
+        elif regulation_mode == REGULATION_VACATION:
+            regulation_mode = (
+                REGULATION_SCHEDULE
+                if thermostat.last_primary_mode_is_auto
+                else REGULATION_MANUAL
+            )
+
+        await self._async_update_group(
+            thermostat,
+            {
+                "RegulationMode": regulation_mode,
+                "VacationEnabled": enabled,
+                "VacationBeginDay": format_wd5_date(start),
+                "VacationEndDay": format_wd5_date(end),
+            },
+        )
+
+    async def async_change_vacation(
+        self,
+        thermostat: Thermostat,
+        start: date,
+        end: date,
+        *,
+        enabled: bool,
+    ) -> None:
+        """Validate and apply a vacation change requested by the user.
+
+        Raises
+        ------
+            ServiceValidationError: The dates are not valid.
+            HomeAssistantError: The API refused the update.
+
+        """
+        if self.wd5_api is None:
+            msg = "Vacation can only be set on WD5-series thermostats."
+            raise ServiceValidationError(msg)
+        if end <= start:
+            msg = "The vacation end date must be after the start date."
+            raise ServiceValidationError(msg)
+        if enabled and end <= dt_util.now().date():
+            msg = "The vacation end date must be in the future."
+            raise ServiceValidationError(msg)
+        try:
+            await self.async_set_vacation(thermostat, start, end, enabled=enabled)
+        except OJMicrolineError as error:
+            raise HomeAssistantError(str(error)) from error
+        await self.async_request_delayed_refresh()
+
+    async def async_change_schedule(
+        self, thermostat: Thermostat, schedule: dict[str, Any]
+    ) -> None:
+        """Apply a schedule change requested by the user.
+
+        Raises
+        ------
+            ServiceValidationError: The thermostat has no schedule.
+            HomeAssistantError: The API refused the update.
+
+        """
+        if self.wd5_api is None:
+            msg = "The schedule can only be set on WD5-series thermostats."
+            raise ServiceValidationError(msg)
+        try:
+            await self.async_set_schedule(thermostat, schedule)
+        except OJMicrolineError as error:
+            raise HomeAssistantError(str(error)) from error
+        await self.async_request_delayed_refresh()
+
+    async def async_request_delayed_refresh(self) -> None:
+        """Refresh shortly after a change; the API returns stale data right away.
+
+        Push updates normally arrive first; this is the fallback.
+        """
+        await asyncio.sleep(2)
+        await self.async_request_refresh()
+
+    async def async_set_schedule(
+        self, thermostat: Thermostat, schedule: dict[str, Any]
+    ) -> None:
+        """Set the weekly schedule of a thermostat's group.
+
+        Raises
+        ------
+            OJMicrolineError: The API refused the update.
+
+        """
+        await self._async_update_group(
+            thermostat, {"Schedule": schedule}, exclude_vacation=True
+        )
+
+    async def async_set_regulation_mode(
+        self,
+        thermostat: Thermostat,
+        regulation_mode: int,
+        temperature: int | None = None,
+        duration: int | None = None,
+    ) -> None:
+        """Set the regulation mode (preset) and optionally the temperature.
+
+        Raises
+        ------
+            OJMicrolineError: The API refused the update.
+
+        """
+        duration = duration or COMFORT_DURATION
+        if self.wd5_api is None:
+            await self.api.set_regulation_mode(
+                thermostat, regulation_mode, temperature, duration
+            )
+            return
+        await self._async_update_group(
+            thermostat,
+            regulation_mode=regulation_mode,
+            temperature=temperature,
+            duration=duration,
+        )
+
+    async def _async_update_group(  # noqa: PLR0913 # pylint: disable=too-many-arguments
+        self,
+        thermostat: Thermostat,
+        changes: dict[str, Any] | None = None,
+        *,
+        regulation_mode: int | None = None,
+        temperature: int | None = None,
+        duration: int = COMFORT_DURATION,
+        exclude_vacation: bool = False,
+    ) -> None:
+        """Update settings of a thermostat's group (WD5 series only).
+
+        The API replaces all group settings at once, so the thermostat's current
+        settings are sent along with the changes. Date/times are sent back as
+        the wall clock times the API returned (see helpers.py), except for the
+        comfort/boost end time when that mode is being set.
+        """
         api = self.wd5_api
         if api is None:
-            msg = "Vacation can only be set on WD5-series thermostats."
+            msg = "This is only supported on WD5-series thermostats."
             raise OJMicrolineError(msg)
 
-        previous_mode = (
-            REGULATION_SCHEDULE
-            if thermostat.last_primary_mode_is_auto
-            else REGULATION_MANUAL
-        )
-        regulation_mode = thermostat.regulation_mode
-        if start is not None and end is not None:
-            begin_time = dt_util.start_of_local_day(start)
-            end_time = dt_util.start_of_local_day(end)
-            if begin_time <= dt_util.now():
-                regulation_mode = REGULATION_VACATION
-            elif regulation_mode == REGULATION_VACATION:
-                regulation_mode = previous_mode
-            vacation = {
-                "VacationEnabled": True,
-                "VacationBeginDay": begin_time.strftime(WD5_DATETIME_FORMAT),
-                "VacationEndDay": end_time.strftime(WD5_DATETIME_FORMAT),
-            }
-        else:
-            if regulation_mode == REGULATION_VACATION:
-                regulation_mode = previous_mode
-            vacation = {"VacationEnabled": False}
-
         body = api.update_regulation_mode_body(
-            thermostat, regulation_mode, None, COMFORT_DURATION
+            thermostat,
+            thermostat.regulation_mode if regulation_mode is None else regulation_mode,
+            temperature,
+            duration,
         )
-        body["SetGroup"].update(
-            vacation,
-            # Keep running comfort/boost periods as they are.
-            ComfortEndTime=_format(thermostat.comfort_end_time),
-            BoostEndTime=_format(thermostat.boost_end_time),
+        group = body["SetGroup"]
+        group.update(
+            ExcludeVacationData=exclude_vacation,
+            VacationBeginDay=format_wd5(thermostat.vacation_begin_time),
+            VacationEndDay=format_wd5(thermostat.vacation_end_time),
         )
+        if regulation_mode != REGULATION_COMFORT:
+            group["ComfortEndTime"] = format_wd5(thermostat.comfort_end_time)
+        if regulation_mode != REGULATION_BOOST:
+            group["BoostEndTime"] = format_wd5(thermostat.boost_end_time)
+        group.update(changes or {})
 
         await self.api.login()
         response = await api.request(
@@ -292,9 +425,5 @@ class OJMicrolineDataUpdateCoordinator(DataUpdateCoordinator):
             body=body,
         )
         if not api.parse_update_regulation_mode_response(response):
-            msg = "Unable to set vacation."
+            msg = "Unable to update the thermostat group."
             raise OJMicrolineError(msg)
-
-
-def _format(value: datetime | None) -> str | None:
-    return None if value is None else value.strftime(WD5_DATETIME_FORMAT)
