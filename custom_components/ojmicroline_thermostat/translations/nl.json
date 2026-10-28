@@ -7,7 +7,23 @@
                     "model": "Model"
                 },
                 "data_description": {
-                    "model": "De WD5-serie omvat OWD5 en MWD5; de WG4-serie omvat UWG4 en AWG4; de WG5-serie omvat UWG5."
+                    "model": "De WD5-serie omvat OWD5 en MWD5; de WG4-serie omvat UWG4 en AWG4; de WG5-serie omvat UWG5. Kies \"SWATT app\" als je de SWATT-app gebruikt, dan wordt de API key voor je ingevuld."
+                }
+            },
+            "swatt": {
+                "title": "SWATT-app",
+                "description": "Log in met de gebruikersnaam en het wachtwoord van je SWATT-account. De API key en het customer ID van de SWATT-app zijn al ingevuld.",
+                "data": {
+                    "username": "Gebruikersnaam",
+                    "password": "Wachtwoord",
+                    "api_key": "API Key",
+                    "customer_id": "Customer ID",
+                    "host": "Host"
+                },
+                "data_description": {
+                    "api_key": "De API key van de SWATT-app.",
+                    "customer_id": "Het customer ID van de SWATT-app.",
+                    "host": "Laat dit leeg om de standaardwaarde te gebruiken. Indien opgegeven, laat https:// weg."
                 }
             },
             "wd5": {

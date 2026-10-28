@@ -49,8 +49,11 @@ from .const import (
     DOMAIN,
     INTEGRATION_NAME,
     MODEL_WD5_SERIES,
+    MODEL_WD5_SWATT,
     MODEL_WG4_SERIES,
     MODEL_WG5_SERIES,
+    SWATT_API_KEY,
+    SWATT_CUSTOMER_ID,
 )
 
 if TYPE_CHECKING:
@@ -82,7 +85,7 @@ REAUTH_SCHEMA = probatio.Schema(
 USER_STEP_SCHEMA = probatio.Schema(
     {
         probatio.Required(CONF_MODEL): probatio.In(
-            [MODEL_WD5_SERIES, MODEL_WG4_SERIES, MODEL_WG5_SERIES]
+            [MODEL_WD5_SWATT, MODEL_WD5_SERIES, MODEL_WG4_SERIES, MODEL_WG5_SERIES]
         ),
     }
 )
@@ -104,6 +107,16 @@ WD5_STEP_SCHEMA = probatio.Schema(
         probatio.Required(CONF_API_KEY): str,
         CONF_HOST: str,
         CONF_CUSTOMER_ID: int,
+    }
+)
+
+SWATT_STEP_SCHEMA = probatio.Schema(
+    {
+        probatio.Required(CONF_USERNAME): str,
+        probatio.Required(CONF_PASSWORD): str,
+        probatio.Required(CONF_API_KEY, default=SWATT_API_KEY): str,
+        probatio.Required(CONF_CUSTOMER_ID, default=SWATT_CUSTOMER_ID): int,
+        CONF_HOST: str,
     }
 )
 
@@ -163,6 +176,8 @@ class OJMicrolineFlowHandler(ConfigFlow, domain=DOMAIN):
 
         """
         if user_input:
+            if user_input[CONF_MODEL] == MODEL_WD5_SWATT:
+                return await self.async_step_swatt()
             if user_input[CONF_MODEL] == MODEL_WD5_SERIES:
                 return await self.async_step_wd5()
             if user_input[CONF_MODEL] == MODEL_WG5_SERIES:
@@ -229,6 +244,36 @@ class OJMicrolineFlowHandler(ConfigFlow, domain=DOMAIN):
                 return result
         return self.async_show_form(
             step_id="wg5", data_schema=WG5_STEP_SCHEMA, errors=errors
+        )
+
+    async def async_step_swatt(self, user_input: dict[str, Any] | None = None) -> Any:
+        """Step for WD5-series thermostats controlled with the SWATT app.
+
+        Same as the WD5 step, but with the SWATT app's API key and customer
+        ID filled in.
+
+        Args:
+        ----
+            user_input: The input received from the user or none.
+
+        Returns:
+        -------
+            The created config entry or a form to re-enter the user input with errors.
+
+        """
+        errors: dict[str, str] = {}
+        if user_input:
+            result = await self._async_try_create_entry(
+                {
+                    CONF_MODEL: MODEL_WD5_SERIES,
+                    **user_input,
+                },
+                errors,
+            )
+            if result is not None:
+                return result
+        return self.async_show_form(
+            step_id="swatt", data_schema=SWATT_STEP_SCHEMA, errors=errors
         )
 
     async def async_step_wd5(self, user_input: dict[str, Any] | None = None) -> Any:

@@ -271,3 +271,28 @@ async def test_reconfigure_form_per_model(
         "password",
         "identity_host",
     ]
+
+
+@pytest.mark.usefixtures("mock_wd5_api")
+async def test_create_swatt_entry(hass: HomeAssistant) -> None:
+    """Test the SWATT choice fills in the app's API key and customer ID."""
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": SOURCE_USER}
+    )
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {"model": "WD5 series (SWATT app)"}
+    )
+    assert result["step_id"] == "swatt"
+
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {"username": "user@example.com", "password": "pw"}
+    )
+
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert result["data"] == {
+        "model": "WD5 series",
+        "username": "user@example.com",
+        "password": "pw",
+        "api_key": "f219aab4-9ac0-4343-8422-b72203e2fac9",
+        "customer_id": 99,
+    }

@@ -30,6 +30,11 @@ CONF_COMFORT_TEMPERATURE = "comfort_temperature"
 MODEL_WD5_SERIES = "WD5 series"
 MODEL_WG4_SERIES = "WG4 series"
 MODEL_WG5_SERIES = "WG5 series"
+# Config flow choice for WD5 thermostats controlled with the SWATT app; the
+# entry is stored as MODEL_WD5_SERIES with the app's API key and customer ID.
+MODEL_WD5_SWATT = "WD5 series (SWATT app)"
+SWATT_API_KEY = "f219aab4-9ac0-4343-8422-b72203e2fac9"
+SWATT_CUSTOMER_ID = 99
 
 # The application code sent on WG4 login. Standard WG4 thermostats use 2
 # (the library default); Danfoss LX (lxwifi.danfoss.us) requires 4.

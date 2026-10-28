@@ -7,7 +7,23 @@
                     "model": "Model"
                 },
                 "data_description": {
-                    "model": "The WD5 series includes OWD5 and MWD5; the WG4 series includes UWG4 and AWG4; the WG5 series includes UWG5."
+                    "model": "The WD5 series includes OWD5 and MWD5; the WG4 series includes UWG4 and AWG4; the WG5 series includes UWG5. Choose \"SWATT app\" if you use the SWATT app to have the API key filled in."
+                }
+            },
+            "swatt": {
+                "title": "SWATT app",
+                "description": "Sign in with the username and password of your SWATT account. The API key and customer ID of the SWATT app are already filled in.",
+                "data": {
+                    "username": "Username",
+                    "password": "Password",
+                    "api_key": "API Key",
+                    "customer_id": "Customer ID",
+                    "host": "Host"
+                },
+                "data_description": {
+                    "api_key": "The API key of the SWATT app.",
+                    "customer_id": "The customer ID of the SWATT app.",
+                    "host": "Leave blank to use the default. If specified, omit the https://."
                 }
             },
             "wd5": {

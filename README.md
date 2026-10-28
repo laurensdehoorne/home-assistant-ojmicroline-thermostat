@@ -30,6 +30,15 @@ Your thermostat needs to be connected to the internet. For OWD5 model thermostat
 
 This integration requires Home Assistant 2026.10 or newer.
 
+For WD5-series thermostats (OWD5, MWD5) the SWATT and OJ Microline OWD5 apps use the same API key, with a different customer ID:
+
+| App | API key | Customer ID |
+| --- | --- | --- |
+| SWATT | `f219aab4-9ac0-4343-8422-b72203e2fac9` | `99` |
+| OJ Microline OWD5 | `f219aab4-9ac0-4343-8422-b72203e2fac9` | `1` |
+
+The API key only identifies the app; you still sign in with your own username and password.
+
 ## HACS installation
 
 Add this integration using HACS by searching for `OJ Microline Thermostat` on the `Integrations` page.
@@ -44,6 +53,8 @@ Install this integration by copying all files in `/custom_components/ojmicroline
 [![ha_badge][ha-add-shield]][ha-add-url]
 
 To configure the integration, add it using [Home Assistant integrations][ha-add-url]. This will provide you with a configuration screen where you first choose the thermostat series and then enter your username and password (and for the WD5 series also the customer ID and API key).
+
+If you control your OWD5/MWD5 with the SWATT app, choose **WD5 series (SWATT app)**: the app's API key and customer ID are filled in for you, so you only need your SWATT username and password.
 
 To change these settings later, for example after changing your password or to use another host, choose **Reconfigure** in the integration's menu.
 

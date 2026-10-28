@@ -544,6 +544,6 @@ if (!customElements.get("ojmicroline-schedule-card")) {
     description: "The weekly schedule of an OJ Microline thermostat, editable per day.",
     preview: true,
     documentationURL:
-      "https://github.com/robbinjanssen/home-assistant-ojmicroline-thermostat",
+      "https://github.com/laurensdehoorne/home-assistant-ojmicroline-thermostat",
   });
 }

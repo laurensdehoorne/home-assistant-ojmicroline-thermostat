@@ -12,6 +12,8 @@ from homeassistant.util import dt as dt_util
 
 from ojmicroline_thermostat import OJMicrolineError
 
+from .const import SWATT_API_KEY
+
 if TYPE_CHECKING:
     from homeassistant.core import HomeAssistant
 
@@ -55,6 +57,7 @@ async def async_get_config_entry_diagnostics(
     return {
         "entry": {
             "data": async_redact_data(dict(entry.data), TO_REDACT),
+            "uses_swatt_api_key": entry.data.get(CONF_API_KEY) == SWATT_API_KEY,
             "options": dict(entry.options),
         },
         "today": today.isoformat(),
