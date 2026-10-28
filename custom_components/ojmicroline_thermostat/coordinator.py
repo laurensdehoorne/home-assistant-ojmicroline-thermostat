@@ -5,10 +5,8 @@ import logging
 from dataclasses import replace
 from datetime import date, timedelta
 from time import monotonic
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-import async_timeout
-from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import (
     ConfigEntryAuthFailed,
@@ -22,8 +20,10 @@ from homeassistant.util import dt as dt_util
 
 from ojmicroline_thermostat import (
     WD5API,
+    WG4API,
     OJMicrolineAuthError,
     OJMicrolineError,
+    OJMicrolineUnauthorizedError,
     Thermostat,
 )
 from ojmicroline_thermostat.const import (
@@ -47,14 +47,23 @@ from .const import (
     UPDATE_INTERVAL,
 )
 from .energy import EnergyStatistics
-from .helpers import format_wd5, format_wd5_date, is_wd5
+from .helpers import format_wd5, format_wd5_date
 from .push import WD5PushClient
+
+if TYPE_CHECKING:
+    from collections.abc import Awaitable, Callable
+
+    from homeassistant.config_entries import ConfigEntry
 
 _LOGGER = logging.getLogger(__name__)
 
+type OJMicrolineConfigEntry = ConfigEntry["OJMicrolineDataUpdateCoordinator"]
 
-class OJMicrolineDataUpdateCoordinator(DataUpdateCoordinator):
+
+class OJMicrolineDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Thermostat]]):
     """Define an object to fetch data."""
+
+    config_entry: OJMicrolineConfigEntry
 
     def __init__(self, hass: HomeAssistant, entry: ConfigEntry) -> None:
         """Class to manage fetching OJ Microline data.
@@ -68,6 +77,7 @@ class OJMicrolineDataUpdateCoordinator(DataUpdateCoordinator):
         super().__init__(
             hass,
             _LOGGER,
+            config_entry=entry,
             name=DOMAIN,
             update_interval=timedelta(seconds=UPDATE_INTERVAL),
             request_refresh_debouncer=Debouncer(
@@ -80,8 +90,12 @@ class OJMicrolineDataUpdateCoordinator(DataUpdateCoordinator):
         self.wd5_api: WD5API | None = (
             model_api if isinstance(model_api, WD5API) else None
         )
+        self.wg4_api: WG4API | None = (
+            model_api if isinstance(model_api, WG4API) else None
+        )
         self.api = oj_microline_from_api(model_api, hass)
         self.energy = EnergyStatistics(hass, self)
+        self._unsubscribe_push: Callable[[], None] | None = None
 
     async def _async_update_data(self) -> dict[str, Thermostat]:
         """Fetch data from API endpoint.
@@ -101,7 +115,7 @@ class OJMicrolineDataUpdateCoordinator(DataUpdateCoordinator):
 
         """
         try:
-            async with async_timeout.timeout(API_TIMEOUT):
+            async with asyncio.timeout(API_TIMEOUT):
                 thermostats = await self._async_fetch_thermostats()
                 return {resource.serial_number: resource for resource in thermostats}
 
@@ -110,6 +124,21 @@ class OJMicrolineDataUpdateCoordinator(DataUpdateCoordinator):
 
         except OJMicrolineError as error:
             raise UpdateFailed(error) from error
+
+    async def _async_with_session[T](self, call: Callable[[], Awaitable[T]]) -> T:
+        """Log in and run the call, logging in again once if the session expired.
+
+        The API can invalidate a session before it is due to expire, after
+        which requests fail with HTTP 401 until a new session is created.
+        """
+        await self.api.login()
+        try:
+            return await call()
+        except OJMicrolineUnauthorizedError:
+            _LOGGER.debug("The OJ Microline API rejected the session, logging in again")
+            self._model_api.invalidate_session()
+            await self.api.login()
+            return await call()
 
     async def _async_fetch_thermostats(self) -> list[Thermostat]:
         """Fetch the thermostats, reusing recent energy usage where possible.
@@ -122,15 +151,16 @@ class OJMicrolineDataUpdateCoordinator(DataUpdateCoordinator):
         if not isinstance(api, SessionOJMicrolineAPI):
             return await self.api.get_thermostats()
 
-        await self.api.login()
-        data = await api.request(
-            api.get_thermostats_path,
-            method="GET",
-            params={
-                # pylint: disable-next=protected-access
-                "sessionid": api._session_id,  # noqa: SLF001
-                **api.get_thermostats_params(),
-            },
+        data = await self._async_with_session(
+            lambda: api.request(
+                api.get_thermostats_path,
+                method="GET",
+                params={
+                    # pylint: disable-next=protected-access
+                    "sessionid": api._session_id,  # noqa: SLF001
+                    **api.get_thermostats_params(),
+                },
+            )
         )
         thermostats = api.parse_thermostats_response(data)
 
@@ -143,36 +173,88 @@ class OJMicrolineDataUpdateCoordinator(DataUpdateCoordinator):
             previous = (self.data or {}).get(thermostat.serial_number)
             if not refresh_energy and previous is not None:
                 thermostat.energy = previous.energy
-            elif is_wd5(thermostat):
-                # Today's usage per local hour; the library's own request uses
-                # the UTC date, so it shows yesterday's total until 02:00.
+            else:
+                # Today's usage per local hour, which is also imported into
+                # the energy statistics. (For WD5-series thermostats, the
+                # library's own request uses the UTC date, so it shows
+                # yesterday's total until 02:00.)
                 today = await self.energy.async_today(thermostat)
                 thermostat.energy = [round(sum(today), 4)]
                 self.energy.schedule_import(thermostat, today)
-            else:
-                thermostat.energy = await api.get_energy_usage(thermostat)
         if refresh_energy:
             self._energy_updated = now
         return thermostats
 
+    @callback
     def async_start_push(self, entry: ConfigEntry) -> None:
-        """Start receiving push updates (WD5 series only)."""
-        if self.wd5_api is None:
+        """Start receiving push updates, if the thermostat series supports them.
+
+        WD5 uses the notification hub in push.py. Other series use the
+        library's subscription, which long-polls in a background task and
+        retries failures itself. Either way the work is tied to the config
+        entry: it is stopped when the entry unloads, so reloading or
+        removing the entry never leaks a subscription.
+        """
+        if self.wd5_api is not None:
+            WD5PushClient(
+                self.hass,
+                async_get_clientsession(self.hass),
+                self.wd5_api,
+                self._async_handle_push_message,
+                self._async_handle_push_connection,
+            ).start(entry)
             return
-        WD5PushClient(
-            self.hass,
-            async_get_clientsession(self.hass),
-            self.wd5_api,
-            self._async_handle_push_message,
-            self._async_handle_push_connection,
-        ).start(entry)
+
+        if not self._model_api.supports_notifications:
+            return
+        if self._unsubscribe_push is not None:
+            return
+        try:
+            self._unsubscribe_push = self.api.subscribe(
+                self._async_handle_push_thermostat
+            )
+        except OJMicrolineError as err:
+            _LOGGER.warning("Push updates unavailable, polling instead: %s", err)
+            return
+        entry.async_on_unload(self.async_stop_push)
+        self.update_interval = timedelta(seconds=PUSH_UPDATE_INTERVAL)
+
+    @callback
+    def async_stop_push(self) -> None:
+        """Stop the library's push subscription, if any."""
+        unsubscribe, self._unsubscribe_push = self._unsubscribe_push, None
+        if unsubscribe is not None:
+            unsubscribe()
+            self.update_interval = timedelta(seconds=UPDATE_INTERVAL)
+
+    @callback
+    def _async_handle_push_thermostat(self, thermostat: Thermostat) -> None:
+        """Merge a thermostat pushed by the library into the coordinator data.
+
+        The library delivers every thermostat when it (re)subscribes and a
+        single thermostat for each change afterwards.
+        """
+        if not self.data:
+            return
+        current = self.data.get(thermostat.serial_number)
+        if current is None:
+            # Added thermostat; polling picks it up.
+            self.hass.async_create_task(self.async_request_refresh())
+            return
+        _LOGGER.debug("Push update received for %s", thermostat.serial_number)
+        # Pushed data has no energy usage; keep the polled value.
+        thermostat.energy = current.energy
+        data = dict(self.data)
+        data[thermostat.serial_number] = thermostat
+        # Unlike async_set_updated_data this keeps the polling schedule.
+        self.data = data
+        self.async_update_listeners()
 
     @callback
     def _async_handle_push_connection(self, connected: bool) -> None:  # noqa: FBT001
         # Polling is still needed for energy usage and as a fallback, but
         # can be much less frequent while push updates are coming in.
         seconds = PUSH_UPDATE_INTERVAL if connected else UPDATE_INTERVAL
-        # pylint: disable-next=attribute-defined-outside-init
         self.update_interval = timedelta(seconds=seconds)
         if connected:
             # Catch up on anything missed while disconnected.
@@ -188,13 +270,10 @@ class OJMicrolineDataUpdateCoordinator(DataUpdateCoordinator):
                 if isinstance(value, list)
             },
         )
-        # "data" is defined by DataUpdateCoordinator, which pylint cannot see.
-        # pylint: disable=access-member-before-definition
         if not self.data:
             return
 
         data = dict(self.data)
-        # pylint: enable=access-member-before-definition
         changed = False
         # Group changes (mode, setpoints, schedule) apply to every thermostat
         # in the group; fetch everything again rather than guessing.
@@ -224,7 +303,7 @@ class OJMicrolineDataUpdateCoordinator(DataUpdateCoordinator):
                 continue
             try:
                 thermostat = Thermostat.from_wd5_json(item)
-            except (KeyError, TypeError, ValueError):
+            except KeyError, TypeError, ValueError:
                 needs_refresh = True
                 continue
             thermostat.energy = current.energy
@@ -234,7 +313,7 @@ class OJMicrolineDataUpdateCoordinator(DataUpdateCoordinator):
         if changed:
             # Unlike async_set_updated_data this keeps the polling schedule,
             # so energy usage keeps being refreshed.
-            self.data = data  # pylint: disable=attribute-defined-outside-init
+            self.data = data
             self.async_update_listeners()
         if needs_refresh:
             self.hass.async_create_task(self.async_request_refresh())
@@ -378,19 +457,35 @@ class OJMicrolineDataUpdateCoordinator(DataUpdateCoordinator):
         if api is None:
             msg = "Energy usage history is only supported on WD5-series thermostats."
             raise OJMicrolineError(msg)
-        await self.api.login()
-        return await api.request(
-            api.get_energy_usage_path,
-            method="POST",
-            # pylint: disable-next=protected-access
-            params={"sessionid": api._session_id},  # noqa: SLF001
-            body={
-                **api.get_thermostats_params(),
-                "ThermostatID": thermostat.serial_number,
-                "ViewType": view_type,
-                "DateTime": day.isoformat(),
-                "History": history,
-            },
+        return await self._async_with_session(
+            lambda: api.request(
+                api.get_energy_usage_path,
+                method="POST",
+                # pylint: disable-next=protected-access
+                params={"sessionid": api._session_id},  # noqa: SLF001
+                body={
+                    **api.get_thermostats_params(),
+                    "ThermostatID": thermostat.serial_number,
+                    "ViewType": view_type,
+                    "DateTime": day.isoformat(),
+                    "History": history,
+                },
+            )
+        )
+
+    async def async_fetch_wg4_energy(
+        self, thermostat: Thermostat, view: str, day: str, history: int
+    ) -> list[float]:
+        """Fetch energy usage, newest first (WG4 series only).
+
+        See WG4API.fetch_energy_usage for the arguments.
+        """
+        api = self.wg4_api
+        if api is None:
+            msg = "This is only supported on WG4-series thermostats."
+            raise OJMicrolineError(msg)
+        return await self._async_with_session(
+            lambda: api.fetch_energy_usage(thermostat, view, day, history)
         )
 
     async def async_set_regulation_mode(
@@ -460,13 +555,14 @@ class OJMicrolineDataUpdateCoordinator(DataUpdateCoordinator):
             group["BoostEndTime"] = format_wd5(thermostat.boost_end_time)
         group.update(changes or {})
 
-        await self.api.login()
-        response = await api.request(
-            api.update_regulation_mode_path,
-            method="POST",
-            # pylint: disable-next=protected-access
-            params={"sessionid": api._session_id},  # noqa: SLF001
-            body=body,
+        response = await self._async_with_session(
+            lambda: api.request(
+                api.update_regulation_mode_path,
+                method="POST",
+                # pylint: disable-next=protected-access
+                params={"sessionid": api._session_id},  # noqa: SLF001
+                body=body,
+            )
         )
         if not api.parse_update_regulation_mode_response(response):
             msg = "Unable to update the thermostat group."

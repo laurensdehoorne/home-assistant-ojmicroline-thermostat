@@ -1,18 +1,21 @@
 """OJMicroline Thermostat platform configuration."""
 
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from homeassistant.components.frontend import add_extra_js_url
 from homeassistant.components.http import StaticPathConfig
-from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
-from homeassistant.core import HomeAssistant
 from homeassistant.helpers import config_validation as cv
-from homeassistant.helpers.typing import ConfigType
 from homeassistant.loader import async_get_integration
 
 from .const import CONF_MODEL, CONFIG_FLOW_VERSION, DOMAIN, MODEL_WD5_SERIES
-from .coordinator import OJMicrolineDataUpdateCoordinator
+from .coordinator import OJMicrolineConfigEntry, OJMicrolineDataUpdateCoordinator
+
+if TYPE_CHECKING:
+    from homeassistant.config_entries import ConfigEntry
+    from homeassistant.core import HomeAssistant
+    from homeassistant.helpers.typing import ConfigType
 
 CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)  # pylint: disable=invalid-name
 
@@ -50,7 +53,7 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:  # noqa:
     return True
 
 
-async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+async def async_setup_entry(hass: HomeAssistant, entry: OJMicrolineConfigEntry) -> bool:
     """Set up OJMicroline as config entry.
 
     Args:
@@ -63,19 +66,20 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         Return true after setting up.
 
     """
-    hass.data.setdefault(DOMAIN, {})
-
     coordinator = OJMicrolineDataUpdateCoordinator(hass, entry)
     await coordinator.async_config_entry_first_refresh()
-    coordinator.async_start_push(entry)
 
-    hass.data[DOMAIN][entry.entry_id] = coordinator
+    entry.runtime_data = coordinator
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+    # Only after the platforms are up, so a failed setup leaves nothing running.
+    coordinator.async_start_push(entry)
 
     return True
 
 
-async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+async def async_unload_entry(
+    hass: HomeAssistant, entry: OJMicrolineConfigEntry
+) -> bool:
     """Unload a config entry.
 
     Args:
@@ -88,9 +92,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         Return true if unload was successful, false otherwise.
 
     """
-    if unload_ok := await hass.config_entries.async_unload_platforms(entry, PLATFORMS):
-        hass.data[DOMAIN].pop(entry.entry_id)
-    return unload_ok
+    return await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
 
 
 async def async_migrate_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> bool:
@@ -100,13 +102,13 @@ async def async_migrate_entry(hass: HomeAssistant, config_entry: ConfigEntry) ->
 
     if config_entry.version == 1:
         # Version 1 only supported WD5; version 2 requires CONF_MODEL
-        config_entry.version = CONFIG_FLOW_VERSION
         hass.config_entries.async_update_entry(
             config_entry,
             data={
                 CONF_MODEL: MODEL_WD5_SERIES,
                 **config_entry.data,
             },
+            version=CONFIG_FLOW_VERSION,
         )
 
     return True

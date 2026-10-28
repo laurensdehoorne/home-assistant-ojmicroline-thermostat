@@ -7,23 +7,7 @@
                     "model": "Modelo"
                 },
                 "data_description": {
-                    "model": "A série WD5 inclui OWD5 e MWD5; a série WG4 inclui UWG4 e AWG4."
-                }
-            },
-            "swatt": {
-                "title": "Aplicação SWATT",
-                "description": "Inicie sessão com o utilizador e a senha da sua conta SWATT. A chave API e o ID de cliente da aplicação SWATT já estão preenchidos.",
-                "data": {
-                    "username": "Utilizador",
-                    "password": "Senha",
-                    "api_key": "Chave API",
-                    "customer_id": "ID de Cliente",
-                    "host": "Endereço"
-                },
-                "data_description": {
-                    "api_key": "A chave API da aplicação SWATT.",
-                    "customer_id": "O ID de cliente da aplicação SWATT.",
-                    "host": "Deixe em branco para usar o padrão. Se especificado, omita https://."
+                    "model": "A série WD5 inclui OWD5 e MWD5; a série WG4 inclui UWG4 e AWG4; a série WG5 inclui UWG5."
                 }
             },
             "wd5": {
@@ -51,10 +35,39 @@
                 }
             },
             "reauth_confirm": {
-                "title": "Iniciar sessão novamente",
-                "description": "A senha de {username} já não é aceite. Introduza a senha atual.",
+                "title": "Introduza novamente a palavra-passe",
+                "description": "A API OJ Microline rejeitou a palavra-passe de {username}. Introduza a palavra-passe atual.",
                 "data": {
-                    "password": "Senha"
+                    "password": "Palavra-passe"
+                }
+            },
+            "wg5": {
+                "data": {
+                    "username": "Nome de utilizador",
+                    "password": "Palavra-passe",
+                    "identity_host": "Servidor de identidade"
+                },
+                "data_description": {
+                    "username": "A conta que utiliza na aplicação OJ Microline.",
+                    "identity_host": "Servidor de autenticação OAuth2. Deixe em branco para o OJ Microline padrão. Para nJoy / WarmlyYours (UWG5) indique: identity.njoy.warmlyyours.com (omita o https://)."
+                }
+            },
+            "reconfigure": {
+                "title": "Reconfigurar",
+                "description": "Altere as definições da sua conta OJ Microline.",
+                "data": {
+                    "username": "Nome de utilizador",
+                    "password": "Palavra-passe",
+                    "api_key": "Chave de API",
+                    "host": "Anfitrião",
+                    "customer_id": "ID de cliente",
+                    "application": "Código da aplicação",
+                    "identity_host": "Servidor de identidade"
+                },
+                "data_description": {
+                    "host": "Deixe em branco para usar o valor predefinido. Se indicar um, omita o https://.",
+                    "customer_id": "Deixe em branco para usar o valor predefinido.",
+                    "identity_host": "Servidor de autenticação OAuth2. Deixe em branco para o OJ Microline padrão. Para nJoy / WarmlyYours (UWG5) indique: identity.njoy.warmlyyours.com (omita o https://)."
                 }
             }
         },
@@ -65,8 +78,7 @@
             "unknown": "Erro desconhecido"
         },
         "abort": {
-            "already_configured": "As suas credenciais já se encontram configuradas.",
-            "reauth_successful": "A conta foi atualizada."
+            "already_configured": "As suas credenciais já se encontram configuradas."
         }
     },
     "entity": {
@@ -87,6 +99,42 @@
         "sensor": {
             "schedule": {
                 "name": "Horário"
+            },
+            "temperature_room": {
+                "name": "Temperatura ambiente"
+            },
+            "temperature_floor": {
+                "name": "Temperatura do pavimento"
+            },
+            "min_temperature": {
+                "name": "Temperatura mínima"
+            },
+            "max_temperature": {
+                "name": "Temperatura máxima"
+            },
+            "temperature_set_point": {
+                "name": "Temperatura definida"
+            },
+            "energy_usage": {
+                "name": "Consumo de energia"
+            },
+            "power": {
+                "name": "Potência"
+            },
+            "sensor_mode": {
+                "name": "Modo do sensor"
+            },
+            "boost_end_time": {
+                "name": "Fim do boost"
+            },
+            "comfort_end_time": {
+                "name": "Fim do conforto"
+            },
+            "vacation_begin_time": {
+                "name": "Início das férias"
+            },
+            "vacation_end_time": {
+                "name": "Fim das férias"
             }
         },
         "date": {
@@ -101,6 +149,20 @@
             "vacation": {
                 "name": "Férias"
             }
+        },
+        "binary_sensor": {
+            "online": {
+                "name": "Online"
+            },
+            "heating": {
+                "name": "Aquecimento"
+            },
+            "adaptive_mode": {
+                "name": "Modo adaptativo"
+            },
+            "open_window_detection": {
+                "name": "Deteção de janela aberta"
+            }
         }
     },
     "options": {
@@ -109,7 +171,11 @@
                 "description": "Selecione as opcções padrão quando est+a a alterar a temperatura do termostato",
                 "data": {
                     "use_comfort_mode": "Definna para modo conforto quando está a mudar a temperatura.",
-                    "comfort_mode_duration": "Qual a duração que o modo conforto deve durar."
+                    "comfort_mode_duration": "Qual a duração que o modo conforto deve durar.",
+                    "comfort_temperature": "Temperatura de conforto"
+                },
+                "data_description": {
+                    "comfort_temperature": "A temperatura usada ao mudar para a predefinição de conforto. Deixe em branco para usar a temperatura de conforto guardada no termóstato."
                 }
             }
         }

@@ -7,23 +7,7 @@
                     "model": "Model"
                 },
                 "data_description": {
-                    "model": "The WD5 series includes OWD5 and MWD5; the WG4 series includes UWG4 and AWG4. Choose \"SWATT app\" if you use the SWATT app to have the API key filled in."
-                }
-            },
-            "swatt": {
-                "title": "SWATT app",
-                "description": "Sign in with the username and password of your SWATT account. The API key and customer ID of the SWATT app are already filled in.",
-                "data": {
-                    "username": "Username",
-                    "password": "Password",
-                    "api_key": "API Key",
-                    "customer_id": "Customer ID",
-                    "host": "Host"
-                },
-                "data_description": {
-                    "api_key": "The API key of the SWATT app.",
-                    "customer_id": "The customer ID of the SWATT app.",
-                    "host": "Leave blank to use the default. If specified, omit the https://."
+                    "model": "The WD5 series includes OWD5 and MWD5; the WG4 series includes UWG4 and AWG4; the WG5 series includes UWG5."
                 }
             },
             "wd5": {
@@ -53,10 +37,39 @@
                 }
             },
             "reauth_confirm": {
-                "title": "Sign in again",
-                "description": "The password for {username} is no longer accepted. Enter the current password.",
+                "title": "Re-enter the password",
+                "description": "The OJ Microline API rejected the password for {username}. Enter the current password.",
                 "data": {
                     "password": "Password"
+                }
+            },
+            "wg5": {
+                "data": {
+                    "username": "Username",
+                    "password": "Password",
+                    "identity_host": "Identity host"
+                },
+                "data_description": {
+                    "username": "The account you use in the OJ Microline app.",
+                    "identity_host": "OAuth2 login server. Leave blank for standard OJ Microline. For nJoy / WarmlyYours (UWG5) enter: identity.njoy.warmlyyours.com (omit the https://)."
+                }
+            },
+            "reconfigure": {
+                "title": "Reconfigure",
+                "description": "Change the settings of your OJ Microline account.",
+                "data": {
+                    "username": "Username",
+                    "password": "Password",
+                    "api_key": "API Key",
+                    "host": "Host",
+                    "customer_id": "Customer ID",
+                    "application": "Application code",
+                    "identity_host": "Identity host"
+                },
+                "data_description": {
+                    "host": "Leave blank to use the default. If specified, omit the https://.",
+                    "customer_id": "Leave blank to use the default.",
+                    "identity_host": "OAuth2 login server. Leave blank for standard OJ Microline. For nJoy / WarmlyYours (UWG5) enter: identity.njoy.warmlyyours.com (omit the https://)."
                 }
             }
         },
@@ -67,8 +80,7 @@
             "unknown": "Unexpected error"
         },
         "abort": {
-            "already_configured": "Your credentials are already configured.",
-            "reauth_successful": "The account was updated."
+            "already_configured": "Your credentials are already configured."
         }
     },
     "entity": {
@@ -89,6 +101,42 @@
         "sensor": {
             "schedule": {
                 "name": "Schedule"
+            },
+            "temperature_room": {
+                "name": "Temperature room"
+            },
+            "temperature_floor": {
+                "name": "Temperature floor"
+            },
+            "min_temperature": {
+                "name": "Temperature range min"
+            },
+            "max_temperature": {
+                "name": "Temperature range max"
+            },
+            "temperature_set_point": {
+                "name": "Temperature set point"
+            },
+            "energy_usage": {
+                "name": "Energy usage"
+            },
+            "power": {
+                "name": "Power"
+            },
+            "sensor_mode": {
+                "name": "Sensor mode"
+            },
+            "boost_end_time": {
+                "name": "Boost end time"
+            },
+            "comfort_end_time": {
+                "name": "Comfort end time"
+            },
+            "vacation_begin_time": {
+                "name": "Vacation begin time"
+            },
+            "vacation_end_time": {
+                "name": "Vacation end time"
             }
         },
         "date": {
@@ -103,6 +151,20 @@
             "vacation": {
                 "name": "Vacation"
             }
+        },
+        "binary_sensor": {
+            "online": {
+                "name": "Online"
+            },
+            "heating": {
+                "name": "Heating"
+            },
+            "adaptive_mode": {
+                "name": "Adaptive mode"
+            },
+            "open_window_detection": {
+                "name": "Open window detection"
+            }
         }
     },
     "options": {
@@ -111,7 +173,11 @@
                 "description": "Set default options when changing the thermostat temperature.",
                 "data": {
                     "use_comfort_mode": "Set the regulation to comfort mode when changing the temperature.",
-                    "comfort_mode_duration": "The duration in minutes the comfort mode should be enabled."
+                    "comfort_mode_duration": "The duration in minutes the comfort mode should be enabled.",
+                    "comfort_temperature": "Comfort temperature"
+                },
+                "data_description": {
+                    "comfort_temperature": "The temperature used when switching to the comfort preset. Leave empty to use the comfort temperature stored in the thermostat."
                 }
             }
         }

@@ -2,11 +2,10 @@
 
 import asyncio
 import logging
-from collections.abc import Mapping  # pylint: disable=import-error
-from datetime import date
-from typing import Any, ClassVar
+from dataclasses import replace
+from typing import TYPE_CHECKING, Any
 
-import voluptuous as vol
+import probatio
 from homeassistant.components.climate import (
     ClimateEntity,
     ClimateEntityFeature,
@@ -18,14 +17,11 @@ from homeassistant.components.climate.const import (
     PRESET_COMFORT,
     PRESET_ECO,
 )
-from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import ATTR_TEMPERATURE, UnitOfTemperature
-from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers import entity_platform
-from homeassistant.helpers.entity import DeviceInfo
-from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from ojmicroline_thermostat import OJMicrolineError
@@ -46,6 +42,7 @@ from .const import (
     ATTR_START_DATE,
     ATTR_TIME,
     CONF_COMFORT_MODE_DURATION,
+    CONF_COMFORT_TEMPERATURE,
     CONF_USE_COMFORT_MODE,
     DOMAIN,
     MANUFACTURER,
@@ -57,9 +54,18 @@ from .const import (
     SERVICE_SET_SCHEDULE,
     SERVICE_SET_VACATION,
 )
-from .coordinator import OJMicrolineDataUpdateCoordinator
+from .coordinator import OJMicrolineConfigEntry, OJMicrolineDataUpdateCoordinator
 from .helpers import target_temperature, wd5_date
 from .schedule import SLOTS, WEEKDAYS, ScheduleError, set_days
+
+if TYPE_CHECKING:
+    from collections.abc import Mapping
+    from datetime import date
+
+    from homeassistant.core import HomeAssistant
+    from homeassistant.helpers.entity_platform import AddEntitiesCallback
+
+    from ojmicroline_thermostat import Thermostat
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -76,18 +82,20 @@ HA_TO_VENDOR_STATE = {v: k for k, v in VENDOR_TO_HA_STATE.items()}
 
 
 async def async_setup_entry(
-    hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback
+    _hass: HomeAssistant,
+    entry: OJMicrolineConfigEntry,
+    async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Load all OJMicroline Thermostat devices.
 
     Args:
     ----
-        hass: The HomeAssistant instance.
+        _hass: The HomeAssistant instance.
         entry: The ConfigEntry containing the user input.
         async_add_entities: The callback to provide the created entities to.
 
     """
-    coordinator = hass.data[DOMAIN][entry.entry_id]
+    coordinator = entry.runtime_data
     entities = []
     for idx in coordinator.data:
         entities.append(  # noqa: PERF401
@@ -101,8 +109,8 @@ async def async_setup_entry(
     platform.async_register_entity_service(
         SERVICE_SET_VACATION,
         {
-            vol.Required(ATTR_START_DATE): cv.date,
-            vol.Required(ATTR_END_DATE): cv.date,
+            probatio.Required(ATTR_START_DATE): cv.date,
+            probatio.Required(ATTR_END_DATE): cv.date,
         },
         "async_set_vacation",
     )
@@ -112,20 +120,20 @@ async def async_setup_entry(
     platform.async_register_entity_service(
         SERVICE_SET_SCHEDULE,
         {
-            vol.Required(ATTR_DAYS): vol.All(
-                cv.ensure_list, [vol.In(WEEKDAYS)], vol.Length(min=1)
+            probatio.Required(ATTR_DAYS): probatio.All(
+                cv.ensure_list, [probatio.In(WEEKDAYS)], probatio.Length(min=1)
             ),
-            vol.Required(ATTR_EVENTS): vol.All(
+            probatio.Required(ATTR_EVENTS): probatio.All(
                 cv.ensure_list,
                 [
-                    vol.Schema(
+                    probatio.Schema(
                         {
-                            vol.Required(ATTR_TIME): cv.time,
-                            vol.Required(ATTR_TEMPERATURE): vol.Coerce(float),
+                            probatio.Required(ATTR_TIME): cv.time,
+                            probatio.Required(ATTR_TEMPERATURE): probatio.Coerce(float),
                         }
                     )
                 ],
-                vol.Length(min=1, max=SLOTS),
+                probatio.Length(min=1, max=SLOTS),
             ),
         },
         "async_set_schedule",
@@ -137,7 +145,6 @@ class OJMicrolineThermostat(
 ):
     """OJMicrolineThermostat climate."""
 
-    _attr_hvac_modes: ClassVar[list[HVACMode]] = [HVACMode.HEAT]
     _attr_hvac_mode = HVACMode.HEAT
     _attr_supported_features = (
         ClimateEntityFeature.PRESET_MODE | ClimateEntityFeature.TARGET_TEMPERATURE
@@ -168,6 +175,7 @@ class OJMicrolineThermostat(
         super().__init__(coordinator)
         self.idx = idx
         self.options = options
+        self._attr_hvac_modes = [HVACMode.HEAT]
         self._attr_unique_id = self.idx
 
     @property
@@ -281,12 +289,18 @@ class OJMicrolineThermostat(
             preset_mode: The preset mode to set the thermostat to.
 
         """
+        thermostat = self.coordinator.data[self.idx]
+        regulation_mode = HA_TO_VENDOR_STATE[preset_mode]
+        # Always send a temperature for these presets: without one, the WG4
+        # API stores an empty temperature and the thermostat falls back to an
+        # unrelated value (issue #280).
+        temperature = None
+        if regulation_mode == REGULATION_MANUAL:
+            temperature = target_temperature(thermostat)
+        elif regulation_mode == REGULATION_COMFORT:
+            temperature = self._comfort_temperature(thermostat)
         try:
-            await self.coordinator.async_set_regulation_mode(
-                self.coordinator.data[self.idx],
-                HA_TO_VENDOR_STATE[preset_mode],
-            )
-            await self._async_delayed_request_refresh()
+            await self._async_set_regulation_mode(regulation_mode, temperature)
         except OJMicrolineError:
             _LOGGER.exception(
                 'Failed setting preset mode "%s" (%s)',
@@ -314,13 +328,57 @@ class OJMicrolineThermostat(
                 else REGULATION_MANUAL
             )
 
+        await self._async_set_regulation_mode(regulation_mode, round(temperature * 100))
+
+    def _comfort_temperature(self, thermostat: Thermostat) -> int:
+        """Return the temperature to use for the comfort preset, in 1/100 °C.
+
+        The configured comfort temperature, otherwise the comfort temperature
+        stored in the thermostat, and as a last resort the current target.
+        """
+        if (configured := self.options.get(CONF_COMFORT_TEMPERATURE)) is not None:
+            return round(float(configured) * 100)
+        stored: int | None = thermostat.comfort_temperature
+        return stored or target_temperature(thermostat)
+
+    async def _async_set_regulation_mode(
+        self, regulation_mode: int, temperature: int | None
+    ) -> None:
+        """Set the regulation mode and show it right away.
+
+        The new mode is applied to the coordinator data immediately, so the
+        state does not wait for the API, and the refresh that confirms it
+        runs in the background.
+
+        Raises
+        ------
+            OJMicrolineError: The API refused the update.
+
+        """
+        thermostat = self.coordinator.data[self.idx]
         await self.coordinator.async_set_regulation_mode(
-            self.coordinator.data[self.idx],
+            thermostat,
             regulation_mode,
-            temperature=round(temperature * 100),
+            temperature=temperature,
             duration=self.options.get(CONF_COMFORT_MODE_DURATION),
         )
-        await self._async_delayed_request_refresh()
+
+        changes: dict[str, Any] = {"regulation_mode": regulation_mode}
+        if temperature is not None:
+            if regulation_mode == REGULATION_MANUAL:
+                changes["manual_temperature"] = temperature
+            elif regulation_mode == REGULATION_COMFORT:
+                changes["comfort_temperature"] = temperature
+            if thermostat.set_point_temperature is not None:
+                changes["set_point_temperature"] = temperature
+        self.coordinator.async_set_updated_data(
+            {**self.coordinator.data, self.idx: replace(thermostat, **changes)}
+        )
+        self.coordinator.config_entry.async_create_background_task(
+            self.hass,
+            self._async_delayed_request_refresh(),
+            f"Refresh {thermostat.name} after an update",
+        )
 
     async def async_set_vacation(self, start_date: date, end_date: date) -> None:
         """Schedule a vacation for this thermostat's group.
@@ -390,8 +448,8 @@ class OJMicrolineThermostat(
 
     async def async_set_hvac_mode(
         self,
-        hvac_mode: str,  # pylint: disable=unused-argument  # noqa: ARG002
-    ) -> bool:
+        hvac_mode: HVACMode,  # pylint: disable=unused-argument
+    ) -> None:
         """Set new hvac mode.
 
         Always ignore; we only support HEATING mode.
@@ -401,4 +459,3 @@ class OJMicrolineThermostat(
             hvac_mode: Currently not used.
 
         """
-        return True

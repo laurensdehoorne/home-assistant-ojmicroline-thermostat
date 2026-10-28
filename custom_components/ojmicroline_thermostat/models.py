@@ -2,8 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any
-
+from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity import Entity
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
@@ -13,6 +12,8 @@ from .coordinator import OJMicrolineDataUpdateCoordinator
 
 class OJMicrolineEntity(CoordinatorEntity[OJMicrolineDataUpdateCoordinator], Entity):
     """Defines an OJ Microline Entity."""
+
+    _attr_has_entity_name = True
 
     idx: str
 
@@ -29,7 +30,7 @@ class OJMicrolineEntity(CoordinatorEntity[OJMicrolineDataUpdateCoordinator], Ent
         self.idx = idx
 
     @property
-    def device_info(self) -> dict[str, Any]:
+    def device_info(self) -> DeviceInfo:
         """Return information to link this entity with the correct device.
 
         Returns
@@ -38,4 +39,7 @@ class OJMicrolineEntity(CoordinatorEntity[OJMicrolineDataUpdateCoordinator], Ent
             to the correct device.
 
         """
-        return {"identifiers": {(DOMAIN, self.idx)}}
+        return DeviceInfo(
+            identifiers={(DOMAIN, self.idx)},
+            name=self.coordinator.data[self.idx].name,
+        )

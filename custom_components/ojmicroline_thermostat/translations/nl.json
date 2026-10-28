@@ -7,23 +7,7 @@
                     "model": "Model"
                 },
                 "data_description": {
-                    "model": "De WD5-serie betreft de OWD5 en MWD5; de WG4-serie betreft de UWG4 en AWG4. Kies \"SWATT app\" als je de SWATT-app gebruikt, dan wordt de API key voor je ingevuld."
-                }
-            },
-            "swatt": {
-                "title": "SWATT-app",
-                "description": "Log in met de gebruikersnaam en het wachtwoord van je SWATT-account. De API key en het customer ID van de SWATT-app zijn al ingevuld.",
-                "data": {
-                    "username": "Gebruikersnaam",
-                    "password": "Wachtwoord",
-                    "api_key": "API Key",
-                    "customer_id": "Customer ID",
-                    "host": "Host"
-                },
-                "data_description": {
-                    "api_key": "De API key van de SWATT-app.",
-                    "customer_id": "Het customer ID van de SWATT-app.",
-                    "host": "Laat dit leeg om de standaardwaarde te gebruiken. Indien opgegeven, laat https:// weg."
+                    "model": "De WD5-serie omvat OWD5 en MWD5; de WG4-serie omvat UWG4 en AWG4; de WG5-serie omvat UWG5."
                 }
             },
             "wd5": {
@@ -51,10 +35,39 @@
                 }
             },
             "reauth_confirm": {
-                "title": "Opnieuw aanmelden",
-                "description": "Het wachtwoord voor {username} wordt niet meer geaccepteerd. Voer het huidige wachtwoord in.",
+                "title": "Wachtwoord opnieuw invoeren",
+                "description": "De OJ Microline API heeft het wachtwoord voor {username} geweigerd. Voer het huidige wachtwoord in.",
                 "data": {
                     "password": "Wachtwoord"
+                }
+            },
+            "wg5": {
+                "data": {
+                    "username": "Gebruikersnaam",
+                    "password": "Wachtwoord",
+                    "identity_host": "Identiteitsserver"
+                },
+                "data_description": {
+                    "username": "Het account dat je in de OJ Microline-app gebruikt.",
+                    "identity_host": "OAuth2-inlogserver. Laat leeg voor de standaard OJ Microline. Vul voor nJoy / WarmlyYours (UWG5) in: identity.njoy.warmlyyours.com (zonder https://)."
+                }
+            },
+            "reconfigure": {
+                "title": "Opnieuw configureren",
+                "description": "Wijzig de instellingen van je OJ Microline-account.",
+                "data": {
+                    "username": "Gebruikersnaam",
+                    "password": "Wachtwoord",
+                    "api_key": "API-sleutel",
+                    "host": "Host",
+                    "customer_id": "Klant-ID",
+                    "application": "Applicatiecode",
+                    "identity_host": "Identiteitsserver"
+                },
+                "data_description": {
+                    "host": "Laat leeg voor de standaardwaarde. Laat https:// weg als je een host opgeeft.",
+                    "customer_id": "Laat leeg voor de standaardwaarde.",
+                    "identity_host": "OAuth2-inlogserver. Laat leeg voor de standaard OJ Microline. Vul voor nJoy / WarmlyYours (UWG5) in: identity.njoy.warmlyyours.com (zonder https://)."
                 }
             }
         },
@@ -65,8 +78,7 @@
             "unknown": "Onverwachte fout"
         },
         "abort": {
-            "already_configured": "Deze combinatie is al geconfigureerd.",
-            "reauth_successful": "Het account is bijgewerkt."
+            "already_configured": "Deze combinatie is al geconfigureerd."
         }
     },
     "entity": {
@@ -87,6 +99,42 @@
         "sensor": {
             "schedule": {
                 "name": "Schema"
+            },
+            "temperature_room": {
+                "name": "Temperatuur kamer"
+            },
+            "temperature_floor": {
+                "name": "Temperatuur vloer"
+            },
+            "min_temperature": {
+                "name": "Temperatuurbereik min"
+            },
+            "max_temperature": {
+                "name": "Temperatuurbereik max"
+            },
+            "temperature_set_point": {
+                "name": "Ingestelde temperatuur"
+            },
+            "energy_usage": {
+                "name": "Energieverbruik"
+            },
+            "power": {
+                "name": "Vermogen"
+            },
+            "sensor_mode": {
+                "name": "Sensormodus"
+            },
+            "boost_end_time": {
+                "name": "Eindtijd boost"
+            },
+            "comfort_end_time": {
+                "name": "Eindtijd comfort"
+            },
+            "vacation_begin_time": {
+                "name": "Begintijd vakantie"
+            },
+            "vacation_end_time": {
+                "name": "Eindtijd vakantie"
             }
         },
         "date": {
@@ -101,6 +149,20 @@
             "vacation": {
                 "name": "Vakantie"
             }
+        },
+        "binary_sensor": {
+            "online": {
+                "name": "Online"
+            },
+            "heating": {
+                "name": "Verwarmen"
+            },
+            "adaptive_mode": {
+                "name": "Adaptieve modus"
+            },
+            "open_window_detection": {
+                "name": "Open-raamdetectie"
+            }
         }
     },
     "options": {
@@ -109,7 +171,11 @@
                 "description": "Stel de standaard opties in wanneer de temperatuur van de thermostaat wordt gewijzigd.",
                 "data": {
                     "use_comfort_mode": "Zet de modus naar comfort wanneer de temperatuur wijzigd.",
-                    "comfort_mode_duration": "De totale tijd in minuten dat de comfort mode aan moet staan."
+                    "comfort_mode_duration": "De totale tijd in minuten dat de comfort mode aan moet staan.",
+                    "comfort_temperature": "Comforttemperatuur"
+                },
+                "data_description": {
+                    "comfort_temperature": "De temperatuur bij het overschakelen naar de comfort-preset. Laat leeg om de comforttemperatuur uit de thermostaat te gebruiken."
                 }
             }
         }

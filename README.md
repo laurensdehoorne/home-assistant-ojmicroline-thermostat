@@ -14,11 +14,12 @@ It has been tested and developed on the following models:
 
 ## Supported models
 
-| Model            |
-|------------------|
-| OWD5             |
-| UWG4             |
-| WCD5             |
+| Model            | Series |
+|------------------|--------|
+| OWD5             | WD5    |
+| WCD5             | WD5    |
+| UWG4             | WG4    |
+| UWG5             | WG5    |
 
 After installation you can add the thermostat through the integration page. Currently setting a preset mode and temperature is supported. Adjusting
 the HVAC mode will (re)set it to the schedule preset.
@@ -27,14 +28,7 @@ the HVAC mode will (re)set it to the schedule preset.
 
 Your thermostat needs to be connected to the internet. For OWD5 model thermostats you will need the API key and customer ID that is used by the app that you currently use to control your thermostat.
 
-For WD5-series thermostats (OWD5, MWD5) the SWATT and OJ Microline OWD5 apps use the same API key, with a different customer ID:
-
-| App | API key | Customer ID |
-| --- | --- | --- |
-| SWATT | `f219aab4-9ac0-4343-8422-b72203e2fac9` | `99` |
-| OJ Microline OWD5 | `f219aab4-9ac0-4343-8422-b72203e2fac9` | `1` |
-
-The API key only identifies the app; you still sign in with your own username and password.
+This integration requires Home Assistant 2026.10 or newer.
 
 ## HACS installation
 
@@ -49,19 +43,24 @@ Install this integration by copying all files in `/custom_components/ojmicroline
 
 [![ha_badge][ha-add-shield]][ha-add-url]
 
-To configure the integration, add it using [Home Assistant integrations][ha-add-url]. This will provide you with a configuration screen where you enter the customer ID, API key, username and password.
+To configure the integration, add it using [Home Assistant integrations][ha-add-url]. This will provide you with a configuration screen where you first choose the thermostat series and then enter your username and password (and for the WD5 series also the customer ID and API key).
 
-If you control your OWD5/MWD5 with the SWATT app, choose **WD5 series (SWATT app)**: the app's API key and customer ID are filled in for you, so you only need your SWATT username and password.
+To change these settings later, for example after changing your password or to use another host, choose **Reconfigure** in the integration's menu.
 
-## Live updates (WD5 series)
+## Live updates (WD5 and WG4 series)
 
 WD5-series thermostats receive live updates through the same notification service the OJ Microline and SWATT apps use, so changes made on the thermostat or in the app show up in Home Assistant within seconds. While this connection is up, the integration polls only every 5 minutes (for energy usage and as a fallback); when it drops, polling returns to every minute and the connection is retried automatically.
 
-## Energy statistics (WD5 series)
+WG4-series thermostats receive live updates through the notification long-poll of the mythermostat.info API, provided by the `ojmicroline-thermostat` library. Changes arrive within seconds and periodic temperature reports about every minute. While subscribed, the integration polls only every 5 minutes as a fallback; failed requests are retried automatically with an increasing delay.
 
-For every WD5-series thermostat the integration imports the energy usage history into a long-term statistic named "<thermostat> energy" (`ojmicroline_thermostat:energy_<serial>`): the last 12 months per month, the last 5 weeks per day and the last week per hour, kept up to date per hour from then on. Add it under **Settings → Dashboards → Energy → Individual devices** to see the usage per day, week, month and year, like the apps' statistics screen.
+## Energy statistics (WD5 and WG4 series)
+For every WD5 and WG4-series thermostat the integration imports the energy usage history into a long-term statistic named "<thermostat> energy" (`ojmicroline_thermostat:energy_<serial>`): the last 12 months per month, the last 5 weeks per day and the last week per hour, kept up to date per hour from then on. Add it under **Settings → Dashboards → Energy → Individual devices** to see the usage per day, week, month and year, like the apps' statistics screen.
 
 The "Energy Usage" sensor shows today's usage (from local midnight). Use either the statistic or the sensor in the energy dashboard, not both, or the usage is counted twice.
+
+## Power (WG4 series)
+
+For WG4-series thermostats, energy usage is taken from the "Energy Use" page of mythermostat.info, where the usage of each hour is added once that hour has ended. The "Power" sensor shows the power draw of the floor heating: the load of the heating element, as reported by the thermostat (measured, or configured on the thermostat if load measuring is off), while the thermostat is heating, and 0 W otherwise.
 
 ## Schedule and vacation (WD5 series)
 
@@ -125,7 +124,7 @@ Please see [CONTRIBUTING](.github/CONTRIBUTING.md) and [CODE_OF_CONDUCT](.github
 
 [maintainability-shield]: https://api.codeclimate.com/v1/badges/d77f7409eb02e331261b/maintainability
 [maintainability-url]: https://codeclimate.com/github/robbinjanssen/python-ojmicroline-thermostat
-[maintenance-shield]: https://img.shields.io/maintenance/yes/2025.svg
+[maintenance-shield]: https://img.shields.io/maintenance/yes/2026.svg
 [project-stage-shield]: https://img.shields.io/badge/project%20stage-stable-brightgreen.svg?style=for-the-badge
 
 [hacs-url]: https://github.com/hacs/integration

@@ -7,7 +7,7 @@ CONFIG_FLOW_VERSION = 2
 
 API_TIMEOUT = 30
 UPDATE_INTERVAL = 60
-# Polling interval while push updates are connected (WD5 series).
+# Polling interval while push updates are active (WD5 and WG4 series).
 PUSH_UPDATE_INTERVAL = 300
 # Rate limiting: energy usage changes slowly, so fetch it (one request per
 # thermostat) at most this often, and space out extra refresh requests.
@@ -19,16 +19,17 @@ PUSH_ACTION_UPDATE = 2
 CONF_MODEL = "model"
 CONF_CUSTOMER_ID = "customer_id"
 CONF_APPLICATION = "application"
+# OAuth2 identity server for WG5. Standard OJ Microline uses the library
+# default (identity.ojmicroline.com); private labels such as nJoy /
+# WarmlyYours use identity.njoy.warmlyyours.com.
+CONF_IDENTITY_HOST = "identity_host"
 CONF_USE_COMFORT_MODE = "use_comfort_mode"
 CONF_COMFORT_MODE_DURATION = "comfort_mode_duration"
+CONF_COMFORT_TEMPERATURE = "comfort_temperature"
 
 MODEL_WD5_SERIES = "WD5 series"
 MODEL_WG4_SERIES = "WG4 series"
-# Config flow choice for WD5 thermostats controlled with the SWATT app; the
-# entry is stored as MODEL_WD5_SERIES with the app's API key and customer ID.
-MODEL_WD5_SWATT = "WD5 series (SWATT app)"
-SWATT_API_KEY = "f219aab4-9ac0-4343-8422-b72203e2fac9"
-SWATT_CUSTOMER_ID = 99
+MODEL_WG5_SERIES = "WG5 series"
 
 # The application code sent on WG4 login. Standard WG4 thermostats use 2
 # (the library default); Danfoss LX (lxwifi.danfoss.us) requires 4.
