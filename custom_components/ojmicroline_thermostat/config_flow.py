@@ -1,5 +1,6 @@
 """Config flow to configure OJMicroline."""
 
+from collections.abc import Mapping
 from typing import Any
 
 import voluptuous as vol
@@ -82,6 +83,8 @@ WG4_STEP_SCHEMA = vol.Schema(
         vol.Optional(CONF_APPLICATION, default=DEFAULT_WG4_APPLICATION): int,
     }
 )
+
+REAUTH_STEP_SCHEMA = vol.Schema({vol.Required(CONF_PASSWORD): str})
 
 
 class OJMicrolineFlowHandler(ConfigFlow, domain=DOMAIN):  # type: ignore[call-arg]
@@ -218,6 +221,41 @@ class OJMicrolineFlowHandler(ConfigFlow, domain=DOMAIN):  # type: ignore[call-ar
             step_id="wd5", data_schema=WD5_STEP_SCHEMA, errors=errors
         )
 
+    async def async_step_reauth(
+        self,
+        entry_data: Mapping[str, Any],  # noqa: ARG002 # pylint: disable=unused-argument
+    ) -> Any:
+        """Handle a rejected login, e.g. after a password change."""
+        return await self.async_step_reauth_confirm()
+
+    async def async_step_reauth_confirm(
+        self, user_input: dict[str, Any] | None = None
+    ) -> Any:
+        """Ask for the new password and update the config entry.
+
+        Args:
+        ----
+            user_input: The input received from the user or none.
+
+        Returns:
+        -------
+            An abort result after updating the entry, or the form with errors.
+
+        """
+        entry = self._get_reauth_entry()
+        errors: dict[str, str] = {}
+        if user_input:
+            data = {**entry.data, CONF_PASSWORD: user_input[CONF_PASSWORD]}
+            if (error := await self._async_validate_login(data)) is None:
+                return self.async_update_reload_and_abort(entry, data=data)
+            errors["base"] = error
+        return self.async_show_form(
+            step_id="reauth_confirm",
+            data_schema=REAUTH_STEP_SCHEMA,
+            description_placeholders={CONF_USERNAME: entry.data[CONF_USERNAME]},
+            errors=errors,
+        )
+
     async def _async_try_create_entry(
         self, data: dict[str, Any], errors: dict[str, str]
     ) -> FlowResult | None:
@@ -227,31 +265,36 @@ class OJMicrolineFlowHandler(ConfigFlow, domain=DOMAIN):  # type: ignore[call-ar
         Otherwise, stores an error in the errors dict and returns None.
         """
         data = DATA_SCHEMA(data)
+        # Disallow duplicate entries...
+        self._async_abort_entries_match(
+            {
+                k: data[k]
+                for k in data
+                # ... only considering model/host/username as
+                # distinguishing keys.
+                if k in [CONF_MODEL, CONF_HOST, CONF_USERNAME]
+            }
+        )
+        if (error := await self._async_validate_login(data)) is not None:
+            errors["base"] = error
+            return None
+        return self.async_create_entry(
+            title=f"{INTEGRATION_NAME} ({data[CONF_USERNAME]})", data=data
+        )
+
+    async def _async_validate_login(self, data: Mapping[str, Any]) -> str | None:
+        """Log in to the API; return the error key on failure, otherwise None."""
         try:
-            # Disallow duplicate entries...
-            self._async_abort_entries_match(
-                {
-                    k: data[k]
-                    for k in data
-                    # ... only considering model/host/username as
-                    # distinguishing keys.
-                    if k in [CONF_MODEL, CONF_HOST, CONF_USERNAME]
-                }
-            )
-            api = oj_microline_from_config_entry_data(data, self.hass)
+            api = oj_microline_from_config_entry_data(dict(data), self.hass)
             await api.login()
         except OJMicrolineAuthError:
-            errors["base"] = "invalid_auth"
+            return "invalid_auth"
         except OJMicrolineTimeoutError:
-            errors["base"] = "timeout"
+            return "timeout"
         except OJMicrolineConnectionError:
-            errors["base"] = "connection_failed"
+            return "connection_failed"
         except OJMicrolineError:
-            errors["base"] = "unknown"
-        else:
-            return self.async_create_entry(
-                title=f"{INTEGRATION_NAME} ({data[CONF_USERNAME]})", data=data
-            )
+            return "unknown"
         return None
 
 

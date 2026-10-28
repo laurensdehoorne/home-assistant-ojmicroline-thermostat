@@ -51,6 +51,13 @@
                     "host": "Leave blank to use the default. If specified, omit the https://.",
                     "application": "The application code sent on login. Standard WG4 thermostats use 2 (the default); Danfoss LX (lxwifi.danfoss.us) requires 4."
                 }
+            },
+            "reauth_confirm": {
+                "title": "Sign in again",
+                "description": "The password for {username} is no longer accepted. Enter the current password.",
+                "data": {
+                    "password": "Password"
+                }
             }
         },
         "error": {
@@ -60,7 +67,8 @@
             "unknown": "Unexpected error"
         },
         "abort": {
-            "already_configured": "Your credentials are already configured."
+            "already_configured": "Your credentials are already configured.",
+            "reauth_successful": "The account was updated."
         }
     },
     "entity": {

@@ -49,6 +49,13 @@
                 "data_description": {
                     "host": "Laat dit leeg om de standaardwaarde te gebruiken. Indien opgegeven, laat https:// weg."
                 }
+            },
+            "reauth_confirm": {
+                "title": "Opnieuw aanmelden",
+                "description": "Het wachtwoord voor {username} wordt niet meer geaccepteerd. Voer het huidige wachtwoord in.",
+                "data": {
+                    "password": "Wachtwoord"
+                }
             }
         },
         "error": {
@@ -58,7 +65,8 @@
             "unknown": "Onverwachte fout"
         },
         "abort": {
-            "already_configured": "Deze combinatie is al geconfigureerd."
+            "already_configured": "Deze combinatie is al geconfigureerd.",
+            "reauth_successful": "Het account is bijgewerkt."
         }
     },
     "entity": {

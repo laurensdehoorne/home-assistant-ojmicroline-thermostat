@@ -49,6 +49,13 @@
                 "data_description": {
                     "host": "Deixe em branco para usar o padrão. Se especificado, omita https://."
                 }
+            },
+            "reauth_confirm": {
+                "title": "Iniciar sessão novamente",
+                "description": "A senha de {username} já não é aceite. Introduza a senha atual.",
+                "data": {
+                    "password": "Senha"
+                }
             }
         },
         "error": {
@@ -58,7 +65,8 @@
             "unknown": "Erro desconhecido"
         },
         "abort": {
-            "already_configured": "As suas credenciais já se encontram configuradas."
+            "already_configured": "As suas credenciais já se encontram configuradas.",
+            "reauth_successful": "A conta foi atualizada."
         }
     },
     "entity": {
